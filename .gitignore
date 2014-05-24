@@ -1,0 +1,6 @@
+rel/automator
+rel/automator_*
+*.eunit/
+*~
+*.swp
+*.swo

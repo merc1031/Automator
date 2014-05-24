@@ -1,0 +1,12 @@
+{application, automator,
+ [
+  {description, ""},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {mod, { automator_app, []}},
+  {env, []}
+ ]}.
