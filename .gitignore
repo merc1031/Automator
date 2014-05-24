@@ -1,6 +1,11 @@
+deps
+
 rel/automator
 rel/automator_*
+
 *.eunit/
+
+erl_crash.dump
 *~
 *.swp
 *.swo

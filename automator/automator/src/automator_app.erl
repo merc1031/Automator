@@ -10,6 +10,7 @@
 %% ===================================================================
 
 start(_StartType, _StartArgs) ->
+    error_logger:info_msg("~p:start()", [?MODULE]),
     automator_sup:start_link().
 
 stop(_State) ->
