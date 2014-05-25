@@ -1,0 +1,10 @@
+#!/bin/bash
+
+SCRIPT=`readlink -f ${BASH_SOURCE[0]-$0}`
+SCRIPT_PATH=`dirname $SCRIPT`
+
+export ERL_LIBS=$SCRIPT_PATH/deps:$SCRIPT_PATH/automator
+export PATH=$SCRIPT_PATH/bin:$PATH
+if [ ! -z "$*" ]; then
+    $*
+fi

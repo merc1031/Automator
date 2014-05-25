@@ -23,6 +23,10 @@ start_link() ->
 %% ===================================================================
 
 init([]) ->
-    error_logger:info_msg("~p:init()", [?MODULE]),
-    {ok, { {one_for_one, 5, 10}, []} }.
+    error_logger:info_msg("~p:init()~n", [?MODULE]),
+
+    WebSupervisor = {automator_web_sup,
+                     {automator_web_sup, start_link, []},
+                    permanent, 5000, supervisor, [automator_web_sup]},
+    {ok, { {one_for_one, 10, 10}, [WebSupervisor]} }.
 
