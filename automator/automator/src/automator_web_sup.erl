@@ -13,7 +13,8 @@ init([]) ->
     Dispatch = cowboy_router:compile([
                         {'_', [
 %%                            {"/serial/receiver/vol",receiver_volume_handler, []},
-                            {"/serial/receiver/vol/[:cmd/:vol]", [{vol, int}, {cmd, function, fun _Atomize(Val) -> {true, binary_to_atom(Val, latin1)} end}], receiver_volume_handler, []}
+                            {"/serial/receiver/vol/[:cmd/:vol]", [{vol, int}, {cmd, function, fun _Atomize(Val) -> {true, binary_to_atom(Val, latin1)} end}], receiver_volume_handler, []},
+                            {"/serial/:device/[:cmd/[:val]]", command_dispatch_handler, []}
                         ]}
                 ]),
     WebListener = ranch:child_spec(automator_web_listener, 5, ranch_tcp, [{port, 9374}, {max_connections, 100}], cowboy_protocol, [{env, [{dispatch, Dispatch}]}]),
