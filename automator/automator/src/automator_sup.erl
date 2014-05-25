@@ -28,5 +28,8 @@ init([]) ->
     WebSupervisor = {automator_web_sup,
                      {automator_web_sup, start_link, []},
                     permanent, 5000, supervisor, [automator_web_sup]},
-    {ok, { {one_for_one, 10, 10}, [WebSupervisor]} }.
+    TcpSupervisor = {automator_tcp_sup,
+                     {automator_tcp_sup, start_link, []},
+                    permanent, 5000, supervisor, [automator_tcp_sup]},
+    {ok, { {one_for_one, 10, 10}, [WebSupervisor, TcpSupervisor]} }.
 
