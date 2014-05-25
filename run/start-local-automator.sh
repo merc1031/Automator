@@ -17,4 +17,5 @@ echo 'starting...'
     -setcookie $COOKIE \
     -s automator \
     -kernel error_logger '{file,"'$ABSLOGPATH'"}' \
+    -boot start_sasl \
     -sname sandbox

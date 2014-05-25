@@ -1,4 +1,5 @@
--module(receiver_command_handler).
+
+-module(receiver_command_handler_http).
 
 -export([init/3]).
 
@@ -67,11 +68,10 @@ to_text(Req, State) ->
     error_logger:error_msg("Got a reqest! ~p~n", [iolist_to_binary([<<"You wanted Text, You sent me ">>, io_lib:format("~p", [Args])])]),
     {iolist_to_binary([<<"You wanted Text, You sent me ">>, io_lib:format("~p", [Args])]), Req3, State}.
 
-
 from_html(Req, State) ->
     {ok, Args, Req2} = cowboy_req:body_qs(Req),
 
-    Req3 = cowboy_req:set_resp_body(iolist_to_binary([<<"<html> <head></head> <body>FROM You wanted HTML), You sent me ">>, io_lib:format("~p", [Args]), <<"</body></html>">>]), Req2),
+    {ok, Req3} = cowboy_req:set_resp_body(iolist_to_binary([<<"<html> <head></head> <body>FROM You wanted HTML), You sent me ">>, io_lib:format("~p", [Args]), <<"</body></html>">>]), Req2),
     error_logger:error_msg("Got a reqest! ~p~n", [iolist_to_binary([<<"FROM You wanted html, You sent me ">>, io_lib:format("~p", [Args])])]),
     {true, Req3, State}.
 
@@ -80,13 +80,13 @@ from_json(Req, State) ->
     {ok, Args, Req2} = cowboy_req:body_qs(Req),
 
     error_logger:error_msg("Got a reqest! ~p~n", [iolist_to_binary([<<"FROM You wanted json, You sent me ">>, io_lib:format("~p", [Args])])]),
-    Req3 = cowboy_req:set_resp_body(iolist_to_binary([<<"{\"wanted\": \"FROM You wanted json\", \"sent\": \"You sent me ">>, io_lib:format("~p", [Args]), <<" \"}">>]), Req2),
+    {ok, Req3} = cowboy_req:set_resp_body(iolist_to_binary([<<"{\"wanted\": \"FROM You wanted json\", \"sent\": \"You sent me ">>, io_lib:format("~p", [Args]), <<" \"}">>]), Req2),
     {true, Req3, State}.
 
 from_text(Req, State) ->
     {ok, Args, Req2} = cowboy_req:body_qs(Req),
 
     error_logger:error_msg("Got a reqest! ~p~n", [iolist_to_binary([<<"FROM You wanted text, You sent me ">>, io_lib:format("~p", [Args])])]),
-    Req3 = cowboy_req:set_resp_body(iolist_to_binary([<<"FROM You wanted Text, You sent me ">>, io_lib:format("~p", [Args])]), Req2),
+    {ok, Req3} = cowboy_req:set_resp_body(iolist_to_binary([<<"FROM You wanted Text, You sent me ">>, io_lib:format("~p", [Args])]), Req2),
     {true, Req3, State}.
 
