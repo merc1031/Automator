@@ -12,7 +12,6 @@ init([]) ->
     error_logger:info_msg("~p:init()~n", [?MODULE]),
     Dispatch = cowboy_router:compile([
                         {'_', [
-                            {"/serial/receiver/test", receiver_command_handler, []},
                             {"/serial/receiver/vol",receiver_volume_handler, []},
                             {"/serial/receiver/vol/:cmd/:vol", [{vol, int}, {cmd, function, fun _Atomize(Val) -> {true, binary_to_atom(Val, latin1)} end}], receiver_volume_handler, []}
                         ]}
