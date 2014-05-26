@@ -9,7 +9,7 @@
 -export([init/1]).
 
 %% Helper macro for declaring children of supervisor
--define(CHILD(I, Type), {I, {I, start_link, []}, permanent, 5000, Type, [I]}).
+-define(CHILD(I, Type, Params), {I, {I, start_link, [Params]}, permanent, 5000, Type, [I]}).
 
 %% ===================================================================
 %% API functions
@@ -23,5 +23,13 @@ start_link() ->
 %% ===================================================================
 
 init([]) ->
-    {ok, { {one_for_one, 5, 10}, []} }.
+    Name = {name, pioneer_receiver},
+    CommandMap = {command_map, #{
+        "set_vol" => fun(Val) -> io_lib:format("~3..0BVL~n", [Val]) end
+    }},
+
+
+    Params = [Name, CommandMap],
+    Receiver = ?CHILD(device, worker, Params),
+    {ok, { {one_for_one, 5, 10}, [Receiver]} }.
 
