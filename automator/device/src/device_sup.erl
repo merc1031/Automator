@@ -32,6 +32,8 @@ init([]) ->
         "inc_vol" => "VU\r",
         "power_off" => {multi, ["PF\r", {sleep, 200}, "\r"]},
         "power_on" => {multi, ["\r", {sleep, 200}, "PO\r", {sleep, 2200}, "?P\r"]},
+        "power" => "?P\r",
+        "input" => "?F\r",
         "inc_vol_db" => fun(_Cmd,Val, DataState=#{}) -> 
                                 OldVol = maps:get("VOL", DataState), %%Lookup Raw Stored
                                 OldVolDb = (list_to_integer(OldVol) / 2) - 80.5, %%Convert to Db
@@ -51,12 +53,13 @@ init([]) ->
     ResponseParser = {response_parser, fun() -> {ok, Re} = re:compile("([^0-9]+?)([0-9]*?)\r\n"), Re end() },
     ResponseMap = {response_map, #{
         "VOL" => fun(_Cmd, Val) -> io_lib:format("vol~p~n", [(list_to_integer(Val) / 2) - 80.5]) end,
-        "PWR" => fun(_Cmd, Val) -> io_lib:format("power~p~n", [case Val of "1" -> "Off"; "0" -> "On" end]) end,
-        "FN" => fun(_Cmd, Val) -> io_lib:format("input~p~n", [receiver_inputs(Val)]) end
+        "PWR" => fun(_Cmd, Val) -> io_lib:format("power~s~n", [case Val of "1" -> "Off"; "0" -> "On" end]) end,
+        "FN" => fun(_Cmd, Val) -> io_lib:format("input~s~n", [receiver_inputs(Val)]) end
     }},
 
     InitialDataState = {initial_data_state, #{
-        "vol" => [{cmd, "vol"}, {res, "VOL"}]
+        "vol" => [{cmd, "vol"}, {res, "VOL"}],
+        "input" => [{cmd, "input"}, {res, "FN"}]
     }},
     Target = {target, {tcp_serial, "192.168.1.124", 4999}},
     CleanResponse = {clean_response_action, fun(Resp) -> case lists:filter(fun(Char) -> Char =/= 0 end, Resp) of
