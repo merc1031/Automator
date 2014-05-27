@@ -59,7 +59,12 @@ init([]) ->
         "vol" => [{cmd, "vol"}, {res, "VOL"}]
     }},
     Target = {target, {tcp_serial, "192.168.1.124", 4999}},
-    Params = [Name, CommandMap, ResponseParser, ResponseMap, Target, InitialDataState],
+    CleanResponse = {clean_response_action, fun(Resp) -> case lists:filter(fun(Char) -> Char =/= 0 end, Resp) of
+                                     [] -> "NULL0\r\n";
+                                     R -> R
+                                 end 
+                    end},
+    Params = [Name, CommandMap, ResponseParser, ResponseMap, Target, InitialDataState, CleanResponse],
     Receiver = ?CHILD(pioneer_receiver, device, worker, Params),
     {ok, { {one_for_one, 5, 10}, [Receiver]} }.
 

@@ -20,7 +20,8 @@
           response_parser :: re:re(),
           target :: module(),
           listeners = lists:new() :: list(),
-          data_state = maps:new() :: map()
+          data_state = maps:new() :: map(),
+          clean_response_action :: fun((list()) -> list())
 }).
 
 
@@ -40,13 +41,15 @@ init([PropList]) ->
         Target = proplists:get_value(target, PropList, undefined),
         Listeners = proplists:get_value(listeners, PropList, []),
         InitialDataState = proplists:get_value(initial_data_state, PropList, #{}),
+        CleanResponse = proplists:get_value(clean_response_action, PropList, fun(X) -> X end),
         State = #device_state{
                    name = Name,
                    command_map = CommandMap,
                    response_map = ResponseMap,
                    response_parser = ResponseParser,
                    target = Target,
-                   listeners = Listeners
+                   listeners = Listeners,
+                   clean_response_action = CleanResponse
                   },
         gen_server:cast(self(), {register, Target, InitialDataState}),
         {ok, State}.
@@ -55,6 +58,7 @@ handle_call({translate, Command}, _From, State=#device_state{target=Target,
                                                              response_parser=Parser,
                                                              command_map=CommandMap,
                                                              data_state=DataState,
+                                                             clean_response_action=CleanResponseAction,
                                                              response_map=ResponseMap}) ->
         error_logger:error_msg("In ~p ~p", [State#device_state.name, Command]),
         case translate(Command, CommandMap, DataState) of
@@ -65,7 +69,7 @@ handle_call({translate, Command}, _From, State=#device_state{target=Target,
                                     Acc;
                                  (Action, Acc) ->
                                     error_logger:error_msg("Sending ~p~n", [Action]),
-                                    Result = send_command_sync(Action, Target),
+                                    Result = send_command_sync(Action, Target, CleanResponseAction),
                                     error_logger:error_msg("Got ~p~n", [Result]),
                                     [Result | Acc]
                             end, [],Series)),
@@ -78,7 +82,7 @@ handle_call({translate, Command}, _From, State=#device_state{target=Target,
                 NewState = apply_data_state(ParsedResponses, State),
                 {reply, Translated, NewState};
             TranslatedCommand ->
-                Result = send_command_sync(TranslatedCommand, Target),
+                Result = send_command_sync(TranslatedCommand, Target, CleanResponseAction),
                 ParsedResponses = parse_response(Result, Parser),
                 Translated = translate(ParsedResponses, ResponseMap, DataState),
 
@@ -98,13 +102,14 @@ handle_cast({register, {tcp_serial, Ip, Port}, InitialDataState}, State) ->
         {noreply, State};
 handle_cast({init, InitialDataState}, State=#device_state{command_map=CommandMap,
                                                          target=Target,
+                                                         clean_response_action=CleanResponseAction,
                                                          response_parser=Parser}) ->
     NewState = maps:fold(fun(_Key, InitState, StateAcc=#device_state{data_state=DataStateIn}) ->
         Cmd = proplists:get_value(cmd, InitState),
         case maps:find(Cmd, CommandMap) of
             {ok, RawCmd} ->
                 Res = proplists:get_value(res, InitState),
-                Result = send_command_sync(RawCmd, Target),
+                Result = send_command_sync(RawCmd, Target, CleanResponseAction),
                 Parsed = parse_response(Result, Parser),
                 case lists:filter(fun({L,_}) -> L =:= Res end, Parsed) of
                     [] ->
@@ -188,19 +193,8 @@ normalize(Atom) when is_atom(Atom) ->
 normalize(String) ->
     String.
 
-purge_null(Return) ->
-    lists:filter(fun(Char) -> Char =/= 0 end, Return).
-
-send_command_sync(Command, {tcp_serial, Ip, Port}) ->
-    case purge_null(serial_tcp_bridge:sync_serial_command({Ip, Port}, Command)) of
-        [] ->
-            "NULL0\r\n"; %% handle null response
-        [0] ->
-            "NULL0\r\n"; %% handle null response
-        R ->
-            error_logger:error_msg("What is R ~p~n", [R]),
-            R
-    end.
+send_command_sync(Command, {tcp_serial, Ip, Port}, CleanResponseAction) ->
+    CleanResponseAction(serial_tcp_bridge:sync_serial_command({Ip, Port}, Command)).
 
 translate_command(Device, Command) ->
     gen_server:call(Device, {translate, Command}).
