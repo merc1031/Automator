@@ -35,18 +35,26 @@ init([]) ->
         "power" => "?P\r",
         "input" => "?F\r",
         "inc_vol_db" => fun(_Cmd,Val, DataState=#{}) -> 
-                                OldVol = maps:get("VOL", DataState), %%Lookup Raw Stored
-                                OldVolDb = (list_to_integer(OldVol) / 2) - 80.5, %%Convert to Db
-                                NewVolDb = OldVolDb + list_to_integer(Val), %%Add Db increment
-                                NewVol = (NewVolDb + 80.5) * 2, %% Convert back to raw
-                                io_lib:format("~3..0BVL\r", [trunc(NewVol)])
+                                case maps:find("VOL", DataState) of %%Lookup Raw Stored
+                                    {ok, OldVol} ->
+                                        OldVolDb = (list_to_integer(OldVol) / 2) - 80.5, %%Convert to Db
+                                        NewVolDb = OldVolDb + list_to_integer(Val), %%Add Db increment
+                                        NewVol = (NewVolDb + 80.5) * 2, %% Convert back to raw
+                                        io_lib:format("~3..0BVL\r", [trunc(NewVol)]);
+                                    error ->
+                                        ""
+                                end
                         end,
         "dec_vol_db" => fun(_Cmd,Val, DataState=#{}) -> 
-                                OldVol = maps:get("VOL", DataState), %%Lookup Raw Stored
-                                OldVolDb = (list_to_integer(OldVol) / 2) - 80.5, %%Convert to Db
-                                NewVolDb = OldVolDb - list_to_integer(Val), %%Add Db increment
-                                NewVol = (NewVolDb + 80.5) * 2, %% Convert back to raw
-                                io_lib:format("~3..0BVL\r", [trunc(NewVol)])
+                                case maps:find("VOL", DataState) of %%Lookup Raw Stored
+                                    {ok, OldVol} ->
+                                        OldVolDb = (list_to_integer(OldVol) / 2) - 80.5, %%Convert to Db
+                                        NewVolDb = OldVolDb - list_to_integer(Val), %%Add Db increment
+                                        NewVol = (NewVolDb + 80.5) * 2, %% Convert back to raw
+                                        io_lib:format("~3..0BVL\r", [trunc(NewVol)]);
+                                    error ->
+                                        ""
+                                end
                         end,
         "set_vol_db" => fun(_Cmd,Val)-> 
                                 NewVol = (list_to_integer(Val) + 80.5) * 2, %% Convert back to raw
