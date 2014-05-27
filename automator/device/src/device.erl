@@ -54,12 +54,13 @@ init([PropList]) ->
 handle_call({translate, Command}, _From, State=#device_state{target=Target,
                                                              response_parser=Parser,
                                                              command_map=CommandMap,
+                                                             data_state=DataState,
                                                              response_map=ResponseMap}) ->
         error_logger:error_msg("In ~p ~p", [State#device_state.name, Command]),
-        TranslatedCommand = translate(Command, CommandMap),
+        TranslatedCommand = translate(Command, CommandMap, DataState),
         Result = send_command_sync(TranslatedCommand, Target),
         ParsedResponses = parse_response(Result, Parser),
-        Translated = translate(ParsedResponses, ResponseMap),
+        Translated = translate(ParsedResponses, ResponseMap, DataState),
 
         NewState = apply_data_state(ParsedResponses, State),
         {reply, Translated, NewState};
@@ -121,12 +122,14 @@ parse_response(Response, Parser) ->
     ToTuple = fun([E,E2|_]) -> {E, E2} end,
     lists:map(ToTuple, Matches).
 
-translate(Data, TranslateMap) when is_list(Data) ->
-    string:join(lists:map(fun(X) -> translate(X, TranslateMap) end, Data), "");
-translate(_Data={LeftRaw, RightRaw}, TranslateMap) ->
+translate(Data, TranslateMap, DataState) when is_list(Data) ->
+    string:join(lists:map(fun(X) -> translate(X, TranslateMap, DataState) end, Data), "");
+translate(_Data={LeftRaw, RightRaw}, TranslateMap, DataState) ->
     Left = normalize(LeftRaw),
     Right = normalize(RightRaw),
     case maps:find(Left, TranslateMap) of
+        {ok, Translator} when is_function(Translator, 3)->
+            Translator(Left, Right, DataState);
         {ok, Translator} when is_function(Translator, 2)->
             Translator(Left, Right);
         {ok, {format, Type, Translator}} ->

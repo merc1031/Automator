@@ -29,7 +29,21 @@ init([]) ->
         "set_vol" => fun(_Cmd, Val) -> io_lib:format("~3..0BVL\r", [list_to_integer(Val)]) end,
         "vol" => "?V\r",
         "dec_vol" => "VD\r",
-        "inc_vol" => "VU\r"
+        "inc_vol" => "VU\r",
+        "inc_vol_db" => fun(_Cmd,Val, DataState=#{}) -> 
+                                OldVol = maps:get("VOL", DataState), %%Lookup Raw Stored
+                                OldVolDb = (list_to_integer(OldVol) / 2) - 80.5, %%Convert to Db
+                                NewVolDb = OldVolDb + list_to_integer(Val), %%Add Db increment
+                                NewVol = (NewVolDb + 80.5) * 2, %% Convert back to raw
+                                io_lib:format("~3..0BVL\r", [trunc(NewVol)])
+                        end,
+        "dec_vol_db" => fun(_Cmd,Val, DataState=#{}) -> 
+                                OldVol = maps:get("VOL", DataState), %%Lookup Raw Stored
+                                OldVolDb = (list_to_integer(OldVol) / 2) - 80.5, %%Convert to Db
+                                NewVolDb = OldVolDb - list_to_integer(Val), %%Add Db increment
+                                NewVol = (NewVolDb + 80.5) * 2, %% Convert back to raw
+                                io_lib:format("~3..0BVL\r", [trunc(NewVol)])
+                        end
     }},
 
     ResponseParser = {response_parser, fun() -> {ok, Re} = re:compile("([^0-9]+?)([0-9]+?)\r\n"), Re end() },
