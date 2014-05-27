@@ -21,7 +21,9 @@
           target :: module(),
           listeners = lists:new() :: list(),
           data_state = maps:new() :: map(),
-          clean_response_action :: fun((list()) -> list())
+          clean_response_action :: fun((list()) -> list()),
+          data_state_refresher = maps:new() :: map(),
+          data_state_timer :: timer:tref()
 }).
 
 
@@ -42,6 +44,7 @@ init([PropList]) ->
         Listeners = proplists:get_value(listeners, PropList, []),
         InitialDataState = proplists:get_value(initial_data_state, PropList, #{}),
         CleanResponse = proplists:get_value(clean_response_action, PropList, fun(X) -> X end),
+        {ok, TimerRef} = timer:send_interval(10000, refresh_data_state),
         State = #device_state{
                    name = Name,
                    command_map = CommandMap,
@@ -49,7 +52,9 @@ init([PropList]) ->
                    response_parser = ResponseParser,
                    target = Target,
                    listeners = Listeners,
-                   clean_response_action = CleanResponse
+                   clean_response_action = CleanResponse,
+                   data_state_refresher = InitialDataState,
+                   data_state_timer = TimerRef
                   },
         gen_server:cast(self(), {register, Target, InitialDataState}),
         {ok, State}.
@@ -96,15 +101,35 @@ handle_call(_Request, _From, State) ->
 handle_cast({register, undefined, _}, State) ->
         error_logger:warning_msg("Tried to register undefined target"),
         {noreply, State};
-handle_cast({register, {tcp_serial, Ip, Port}, InitialDataState}, State) ->
+handle_cast({register, {tcp_serial, Ip, Port}}, State) ->
         serial_tcp_bridge:register_device(Ip, Port),
-        gen_server:cast(self(), {init, InitialDataState}),
+        gen_server:cast(self(), {init}),
         {noreply, State};
-handle_cast({init, InitialDataState}, State=#device_state{command_map=CommandMap,
-                                                         target=Target,
-                                                         clean_response_action=CleanResponseAction,
-                                                         response_parser=Parser}) ->
-    NewState = maps:fold(fun(_Key, InitState, StateAcc=#device_state{data_state=DataStateIn}) ->
+handle_cast({init}, State=#device_state{}) ->
+    NewState = refresh_data_state(State),
+    error_logger:error_msg("Initial state set to ~p~n", [NewState]),
+    {noreply, NewState};
+handle_cast(_Msg, State) ->
+        {noreply, State}.
+
+handle_info(refresh_data_state, State=#device_state{}) ->
+    NewState = refresh_data_state(State),
+    {noreply, NewState};
+handle_info(_Info, State) ->
+        {noreply, State}.
+
+terminate(_Reason, _State) ->
+        ok.
+
+code_change(_OldVsn, State, _Extra) ->
+        {ok, State}.
+
+refresh_data_state(State=#device_state{command_map=CommandMap,
+                                        target=Target,
+                                        clean_response_action=CleanResponseAction,
+                                        data_state_refresher=DataStateRefresher,
+                                        response_parser=Parser}) ->
+    maps:fold(fun(_Key, InitState, StateAcc=#device_state{data_state=DataStateIn}) ->
         Cmd = proplists:get_value(cmd, InitState),
         case maps:find(Cmd, CommandMap) of
             {ok, RawCmd} ->
@@ -120,21 +145,7 @@ handle_cast({init, InitialDataState}, State=#device_state{command_map=CommandMap
                 end;
             error ->
                 StateAcc
-        end end, State, InitialDataState),
-    error_logger:error_msg("Initial state set to ~p~n", [NewState]),
-    {noreply, NewState};
-handle_cast(_Msg, State) ->
-        {noreply, State}.
-
-handle_info(_Info, State) ->
-        {noreply, State}.
-
-terminate(_Reason, _State) ->
-        ok.
-
-code_change(_OldVsn, State, _Extra) ->
-        {ok, State}.
-
+        end end, State, DataStateRefresher).
 %%Optimize this to only perform the LAST update to each Resp type we care about
 apply_data_state([], State=#device_state{}) ->
     State;
