@@ -19,7 +19,8 @@
           response_map = maps:new() :: map(),
           response_parser :: re:re(),
           target :: module(),
-          listeners = lists:new() :: list()
+          listeners = lists:new() :: list(),
+          data_state = maps:new() :: map()
 }).
 
 
@@ -38,6 +39,7 @@ init([PropList]) ->
         ResponseParser = proplists:get_value(response_parser, PropList),
         Target = proplists:get_value(target, PropList, undefined),
         Listeners = proplists:get_value(listeners, PropList, []),
+        InitialDataState = proplists:get_value(initial_data_state, PropList, #{}),
         State = #device_state{
                    name = Name,
                    command_map = CommandMap,
@@ -46,7 +48,7 @@ init([PropList]) ->
                    target = Target,
                    listeners = Listeners
                   },
-        gen_server:cast(self(), {register, Target}),
+        gen_server:cast(self(), {register, Target, InitialDataState}),
         {ok, State}.
 
 handle_call({translate, Command}, _From, State=#device_state{target=Target,
@@ -56,20 +58,40 @@ handle_call({translate, Command}, _From, State=#device_state{target=Target,
         error_logger:error_msg("In ~p ~p", [State#device_state.name, Command]),
         TranslatedCommand = translate(Command, CommandMap),
         Result = send_command_sync(TranslatedCommand, Target),
+        ParsedResponses = parse_response(Result, Parser),
+        Translated = translate(ParsedResponses, ResponseMap),
 
-        Translated = translate(parse_response(Result, Parser), ResponseMap),
-
-        {reply, Translated, State};
+        NewState = apply_data_state(ParsedResponses, State),
+        {reply, Translated, NewState};
 handle_call(_Request, _From, State) ->
         Reply = ok,
         {reply, Reply, State}.
 
-handle_cast({register, undefined}, State) ->
+handle_cast({register, undefined, _}, State) ->
         error_logger:warning_msg("Tried to register undefined target"),
         {noreply, State};
-handle_cast({register, {tcp_serial, Ip, Port}}, State) ->
+handle_cast({register, {tcp_serial, Ip, Port}, InitialDataState}, State) ->
         serial_tcp_bridge:register_device(Ip, Port),
+        gen_server:cast(self(), {init, InitialDataState}),
         {noreply, State};
+handle_cast({init, InitialDataState}, State=#device_state{command_map=CommandMap,
+                                                         target=Target,
+                                                         response_parser=Parser}) ->
+    NewState = maps:fold(fun(_Key, InitState, StateAcc=#device_state{data_state=DataStateIn}) ->
+        Cmd = proplists:get_value(cmd, InitState),
+        case maps:find(Cmd, CommandMap) of
+            {ok, RawCmd} ->
+                Res = proplists:get_value(res, InitState),
+                Result = send_command_sync(RawCmd, Target),
+                Parsed = parse_response(Result, Parser),
+                Pruned = lists:filter(fun({L,_}) -> L =:= Res end, Parsed),
+                {_, Val} = hd(lists:reverse(Pruned)), %%TODO better metric for keeping init value
+                StateAcc#device_state{data_state=maps:put(Res, Val, DataStateIn)};
+            error ->
+                StateAcc
+        end end, State, InitialDataState),
+    error_logger:error_msg("Initial state set to ~p~n", [NewState]),
+    {noreply, NewState};
 handle_cast(_Msg, State) ->
         {noreply, State}.
 
@@ -81,6 +103,18 @@ terminate(_Reason, _State) ->
 
 code_change(_OldVsn, State, _Extra) ->
         {ok, State}.
+
+%%Optimize this to only perform the LAST update to each Resp type we care about
+apply_data_state([], State=#device_state{}) ->
+    State;
+apply_data_state(_TranslatedResponses=[{Resp, Val}|Rest], State=#device_state{data_state=DataState}) ->
+    NewDataState = case maps:find(Resp, DataState) of 
+        error ->
+            DataState;
+        {ok, _} ->
+            maps:put(Resp, Val, DataState)
+    end,
+    apply_data_state(Rest, State#device_state{data_state=NewDataState}).
 
 parse_response(Response, Parser) ->
     {match, Matches} = re:run(Response, Parser, [global, {capture, all_but_first, list}]),

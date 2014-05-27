@@ -37,9 +37,11 @@ init([]) ->
         "VOL" => fun(_Cmd, Val) -> io_lib:format("vol~p~n", [(list_to_integer(Val) / 2) - 80.5]) end
     }},
 
-
+    InitialDataState = {initial_data_state, #{
+        "vol" => [{cmd, "vol"}, {res, "VOL"}]
+    }},
     Target = {target, {tcp_serial, "192.168.1.124", 4999}},
-    Params = [Name, CommandMap, ResponseParser, ResponseMap, Target],
+    Params = [Name, CommandMap, ResponseParser, ResponseMap, Target, InitialDataState],
     Receiver = ?CHILD(pioneer_receiver, device, worker, Params),
     {ok, { {one_for_one, 5, 10}, [Receiver]} }.
 
