@@ -2,7 +2,7 @@
 
 -behaviour(gen_server).
 
--export([start_link/1]).
+-export([start_link/0]).
 -export([init/1,
          handle_call/3,
          handle_cast/2,
@@ -14,10 +14,10 @@
 -export([sync_serial_command/2]).
 
 -record(serial_tcp_bridge_state, {
-          device_map = map:new() :: map()
+          device_map = maps:new() :: map()
 }).
 
-start_link([]) ->
+start_link() ->
     gen_server:start_link({local, serial_tcp_bridge}, serial_tcp_bridge, [], []).
 
 init([]) ->
@@ -27,7 +27,7 @@ init([]) ->
 connect(Ip, Port) ->
     {ok, Socket} = case inet_parse:address(Ip) of
         {ok, ErlangIp} ->
-            gen_tcp:connect(ErlangIp, Port, [binary, {active, true}]);
+            gen_tcp:connect(ErlangIp, Port, [list, {active, true}]);
         {error, Reason} -> %% Todo .. this could be bad
             throw({error, Reason})
     end,
@@ -37,9 +37,11 @@ send_command_to_device(Target, Command, State=#serial_tcp_bridge_state{device_ma
     case maps:find(Target, DeviceMap) of % Todo Map key should be name Not ip ? Name It?
         {ok, Tcp} ->
             ok = gen_tcp:send(Tcp, Command),
-            case gen_tcp:recv(Tcp, 0) of
+            case gen_tcp:recv(Tcp, 0, 1000) of
                 {ok, Packet} ->
                     {Packet, State};
+                {error, timeout} ->
+                    {<<"">>, State};
                 {error, _Reason} ->
                     gen_tcp:close(Tcp),
                     {<<"">>, State}

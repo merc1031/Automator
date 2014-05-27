@@ -8,7 +8,7 @@
 -export([accept_html_post/2]).
 -export([content_types_provided/2]).
 -export([content_types_accepted/2]).
-%%
+
 -export([allowed_methods/2]).
 
 init(_Transport, _Req, []) ->
@@ -59,14 +59,14 @@ handle_get_status_request(Req, State) ->
     {Device, Req2} = cowboy_req:binding(device, Req),
     {Cmd, Req3} = cowboy_req:binding(cmd, Req2),
     error_logger:error_msg("What ~p ~p ~p ~n", [Device, Cmd, Req]),
-%%    _Result = Device:send({Cmd}),
+    _Result = device:translate(Device, {Cmd}),
     {command_parts({Device, Cmd}), cowboy_req:set_resp_header(<<"content-type">>, <<"text/plain">>, Req3), State}.
 
 handle_post_change_request(Req, State) ->
     {Device, Req2} = cowboy_req:binding(device, Req),
     {Cmd, Req3} = cowboy_req:binding(cmd, Req2),
     {Val, Req4} = cowboy_req:binding(val, Req3),
-%%    _Result = Device:send({Cmd, Val}),
+    _Result = device:translate(Device, {Cmd, Val}),
     Req5 = cowboy_req:set_resp_header(<<"content-type">>, <<"text/plain">>, cowboy_req:set_resp_body(command_parts({Device, Cmd, Val}), Req4)),
     {true, Req5, State}.
 
