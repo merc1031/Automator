@@ -47,6 +47,10 @@ init([]) ->
                                 NewVolDb = OldVolDb - list_to_integer(Val), %%Add Db increment
                                 NewVol = (NewVolDb + 80.5) * 2, %% Convert back to raw
                                 io_lib:format("~3..0BVL\r", [trunc(NewVol)])
+                        end,
+        "set_vol_db" => fun(_Cmd,Val)-> 
+                                NewVol = (list_to_integer(Val) + 80.5) * 2, %% Convert back to raw
+                                io_lib:format("~3..0BVL\r", [trunc(NewVol)])
                         end
     }},
 
