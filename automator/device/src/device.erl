@@ -83,10 +83,12 @@ code_change(_OldVsn, State, _Extra) ->
         {ok, State}.
 
 parse_response(Response, Parser) ->
-    {match, Matches} = re:run(Response, Parser, [{capture, all_but_first, list}]),
+    {match, Matches} = re:run(Response, Parser, [global, {capture, all_but_first, list}]),
     ToTuple = fun([E,E2|_]) -> {E, E2} end,
-    ToTuple(Matches).
+    lists:map(ToTuple, Matches).
 
+translate(Data, TranslateMap) when is_list(Data) ->
+    string:join(lists:map(fun(X) -> translate(X, TranslateMap) end, Data), "");
 translate(_Data={LeftRaw, RightRaw}, TranslateMap) ->
     Left = normalize(LeftRaw),
     Right = normalize(RightRaw),

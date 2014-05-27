@@ -26,7 +26,7 @@ init([]) ->
     error_logger:error_msg("~p:init()", [?MODULE]),
     Name = {name, pioneer_receiver},
     CommandMap = {command_map, #{
-        "set_vol" => fun(_Cmd, Val) -> io_lib:format("~3..0BVL\r", [Val]) end,
+        "set_vol" => fun(_Cmd, Val) -> io_lib:format("~3..0BVL\r", [list_to_integer(Val)]) end,
         "vol" => "?V\r",
         "dec_vol" => "VD\r",
         "inc_vol" => "VU\r"
@@ -34,7 +34,7 @@ init([]) ->
 
     ResponseParser = {response_parser, fun() -> {ok, Re} = re:compile("([^0-9]+?)([0-9]+?)\r\n"), Re end() },
     ResponseMap = {response_map, #{
-        "VOL" => fun(_Cmd, Val) -> (list_to_integer(Val) / 2) - 80.5 end
+        "VOL" => fun(_Cmd, Val) -> io_lib:format("vol~p~n", [(list_to_integer(Val) / 2) - 80.5]) end
     }},
 
 
