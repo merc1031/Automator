@@ -57,13 +57,34 @@ handle_call({translate, Command}, _From, State=#device_state{target=Target,
                                                              data_state=DataState,
                                                              response_map=ResponseMap}) ->
         error_logger:error_msg("In ~p ~p", [State#device_state.name, Command]),
-        TranslatedCommand = translate(Command, CommandMap, DataState),
-        Result = send_command_sync(TranslatedCommand, Target),
-        ParsedResponses = parse_response(Result, Parser),
-        Translated = translate(ParsedResponses, ResponseMap, DataState),
+        case translate(Command, CommandMap, DataState) of
+            {multi, Series} ->
+                Results = lists:reverse(lists:foldl(fun({sleep, Time}=_Action, Acc) ->
+                                    error_logger:error_msg("About to sleep ~p~n", [Time]),
+                                    timer:sleep(Time),
+                                    Acc;
+                                 (Action, Acc) ->
+                                    error_logger:error_msg("Sending ~p~n", [Action]),
+                                    Result = send_command_sync(Action, Target),
+                                    error_logger:error_msg("Got ~p~n", [Result]),
+                                    [Result | Acc]
+                            end, [],Series)),
 
-        NewState = apply_data_state(ParsedResponses, State),
-        {reply, Translated, NewState};
+                error_logger:error_msg("multi results is ~p~n", [Results]),
+                ParsedResponses = parse_response(lists:flatten(Results), Parser),
+                error_logger:error_msg("multi parsse is ~p~n", [ParsedResponses]),
+                Translated = translate(ParsedResponses, ResponseMap, DataState),
+
+                NewState = apply_data_state(ParsedResponses, State),
+                {reply, Translated, NewState};
+            TranslatedCommand ->
+                Result = send_command_sync(TranslatedCommand, Target),
+                ParsedResponses = parse_response(Result, Parser),
+                Translated = translate(ParsedResponses, ResponseMap, DataState),
+
+                NewState = apply_data_state(ParsedResponses, State),
+                {reply, Translated, NewState}
+        end;
 handle_call(_Request, _From, State) ->
         Reply = ok,
         {reply, Reply, State}.
@@ -85,9 +106,13 @@ handle_cast({init, InitialDataState}, State=#device_state{command_map=CommandMap
                 Res = proplists:get_value(res, InitState),
                 Result = send_command_sync(RawCmd, Target),
                 Parsed = parse_response(Result, Parser),
-                Pruned = lists:filter(fun({L,_}) -> L =:= Res end, Parsed),
-                {_, Val} = hd(lists:reverse(Pruned)), %%TODO better metric for keeping init value
-                StateAcc#device_state{data_state=maps:put(Res, Val, DataStateIn)};
+                case lists:filter(fun({L,_}) -> L =:= Res end, Parsed) of
+                    [] ->
+                        StateAcc;
+                    Pruned ->
+                        {_, Val} = hd(lists:reverse(Pruned)), %%TODO better metric for keeping init value
+                        StateAcc#device_state{data_state=maps:put(Res, Val, DataStateIn)}
+                end;
             error ->
                 StateAcc
         end end, State, InitialDataState),
@@ -118,8 +143,12 @@ apply_data_state(_TranslatedResponses=[{Resp, Val}|Rest], State=#device_state{da
     apply_data_state(Rest, State#device_state{data_state=NewDataState}).
 
 parse_response(Response, Parser) ->
+    error_logger:error_msg("Response ~p~n", [Response]),
     {match, Matches} = re:run(Response, Parser, [global, {capture, all_but_first, list}]),
-    ToTuple = fun([E,E2|_]) -> {E, E2} end,
+    ToTuple = fun
+                  ([E,E2|_]) -> {E, E2};
+                  ([E|_]) -> {E, ""}
+              end,
     lists:map(ToTuple, Matches).
 
 translate(Data, TranslateMap, DataState) when is_list(Data) ->
@@ -143,10 +172,13 @@ translate(_Data={LeftRaw, RightRaw}, TranslateMap, DataState) ->
                 val_cmd ->
                     io_lib:format(Translator, [Right, Left])
             end;
+        {ok, Translator={multi, _}} ->
+            Translator;
         {ok, Translator} ->
             Translator;
         error ->
-            error_logger:error_msg("No translation for pattern ~p:Val ~p ~n", [Left, Right])
+            error_logger:error_msg("No translation for pattern ~p:Val ~p ~n", [Left, Right]),
+            ""
     end.
 
 normalize(Binary) when is_binary(Binary) ->
@@ -156,8 +188,19 @@ normalize(Atom) when is_atom(Atom) ->
 normalize(String) ->
     String.
 
+purge_null(Return) ->
+    lists:filter(fun(Char) -> Char =/= 0 end, Return).
+
 send_command_sync(Command, {tcp_serial, Ip, Port}) ->
-    serial_tcp_bridge:sync_serial_command({Ip, Port}, Command).
+    case purge_null(serial_tcp_bridge:sync_serial_command({Ip, Port}, Command)) of
+        [] ->
+            "NULL0\r\n"; %% handle null response
+        [0] ->
+            "NULL0\r\n"; %% handle null response
+        R ->
+            error_logger:error_msg("What is R ~p~n", [R]),
+            R
+    end.
 
 translate_command(Device, Command) ->
     gen_server:call(Device, {translate, Command}).

@@ -36,16 +36,26 @@ connect(Ip, Port) ->
 send_command_to_device(Target, Command, State=#serial_tcp_bridge_state{device_map=DeviceMap}) ->
     case maps:find(Target, DeviceMap) of % Todo Map key should be name Not ip ? Name It?
         {ok, Tcp} ->
-            ok = gen_tcp:send(Tcp, Command),
-            case gen_tcp:recv(Tcp, 0, 1000) of
-                {ok, Packet} ->
-                    error_logger:error_msg("Got Packet ~p for Command ~p ~n", [Command, Packet]),
-                    {Packet, State};
-                {error, timeout} ->
-                    {<<"">>, State};
+            case gen_tcp:send(Tcp, Command) of
+                ok ->
+                    case gen_tcp:recv(Tcp, 0, 1000) of
+                        {ok, Packet} ->
+                            error_logger:error_msg("Got Packet ~p for Command ~p ~n", [Packet, Command]),
+                            {Packet, State};
+                        {error, timeout} ->
+                            {"", State};
+                        {error, _Reason} ->
+                            gen_tcp:close(Tcp),
+                            {Ip, Port} = Target,
+                            TcpSerial = connect(Ip, Port),
+                            State2 = State#serial_tcp_bridge_state{device_map=maps:put({Ip, Port}, TcpSerial, DeviceMap)},
+                            {"", State2}
+                    end;
                 {error, _Reason} ->
-                    gen_tcp:close(Tcp),
-                    {<<"">>, State}
+                    {Ip, Port} = Target,
+                    TcpSerial = connect(Ip, Port),
+                    State2 = State#serial_tcp_bridge_state{device_map=maps:put({Ip, Port}, TcpSerial, DeviceMap)},
+                    {"", State2}
             end;
         error ->
             {Ip, Port} = Target,
