@@ -65,7 +65,7 @@ send_command_to_device(Target, Command, State=#serial_tcp_bridge_state{device_ma
     end.
 
 handle_call({command, Target, Command}, _From, State) ->
-    {Reply, State2} = send_command_to_device(Target, Command , State),
+    {Reply, State2} = send_command_to_device(Target, lists:flatten(Command), State),
     {reply, Reply, State2};
 handle_call(_Request, _From, State) ->
         Reply = ok,
