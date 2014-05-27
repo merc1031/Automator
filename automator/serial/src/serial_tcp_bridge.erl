@@ -40,7 +40,7 @@ send_command_to_device(Target, Command, State=#serial_tcp_bridge_state{device_ma
                 ok ->
                     case gen_tcp:recv(Tcp, 0, 1000) of
                         {ok, Packet} ->
-                            error_logger:error_msg("Got Packet ~p for Command ~p ~n", [Packet, Command]),
+                            error_logger:warning_msg("Got Packet ~p for Command ~p ~n", [Packet, Command]),
                             {Packet, State};
                         {error, timeout} ->
                             {"", State};

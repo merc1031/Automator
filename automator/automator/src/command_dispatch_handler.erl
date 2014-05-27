@@ -15,7 +15,6 @@ init(_Transport, _Req, []) ->
     {upgrade, protocol , cowboy_rest}.
 
 rest_init(Req, _Opts) ->
-    error_logger:error_msg("Got a requuest ~p!~n", [Req]),
     {ok, Req, 10}.
 
 allowed_methods(Req, State) ->
@@ -35,7 +34,6 @@ content_types_accepted(Req, State) ->
 accept_html_get(Req, State) ->
     case cowboy_req:method(Req) of
         {<<"GET">>, Req2} ->
-            error_logger:error_msg("Got a GET!~n"),
             handle_get_status_request(Req2, State);
 %%            cowboy_req:qs_vals(Req2);
         {_, Req2} ->
@@ -45,7 +43,6 @@ accept_html_get(Req, State) ->
 accept_html_post(Req, State) ->
     case cowboy_req:method(Req) of
         {<<"POST">>, Req2} ->
-            error_logger:error_msg("Got a POST!~n"),
             handle_post_change_request(Req2, State);
 %%            {ok, T, Z} = cowboy_req:body_qs(Req2),
 %%            {T, Z}
@@ -58,9 +55,8 @@ handle_get_status_request(Req, State) ->
 %    {Args, Req2} = cowboy_req:qs_vals(Req),
     {Device, Req2} = cowboy_req:binding(device, Req),
     {Cmd, Req3} = cowboy_req:binding(cmd, Req2),
-    error_logger:error_msg("What ~p ~p ~p ~n", [Device, Cmd, Req]),
     Result = device:translate_command(Device, {Cmd, ""}),
-    error_logger:error_msg(Result),
+    error_logger:info_msg(Result),
     {format_return(Result), cowboy_req:set_resp_header(<<"content-type">>, <<"text/plain">>, Req3), State}.
 
 handle_post_change_request(Req, State) ->
@@ -68,7 +64,7 @@ handle_post_change_request(Req, State) ->
     {Cmd, Req3} = cowboy_req:binding(cmd, Req2),
     {Val, Req4} = cowboy_req:binding(val, Req3, ""),
     Result = device:translate_command(Device, {Cmd, Val}),
-    error_logger:error_msg(Result),
+    error_logger:info_msg(Result),
     Req5 = cowboy_req:set_resp_header(<<"content-type">>, <<"text/plain">>, cowboy_req:set_resp_body(format_return(Result), Req4)),
     {true, Req5, State}.
 

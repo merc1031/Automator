@@ -30,12 +30,10 @@
 start_link(PropList) ->
         Name = proplists:get_value(name, PropList),
         error_logger:error_msg("~p:start_link()~n", [Name]),
-        error_logger:error_msg("start_link() args ~p~n", [PropList]),
         gen_server:start_link({local, Name}, ?MODULE, [PropList], []).
 
 init([PropList]) ->
         error_logger:error_msg("~p:init()~n", [?MODULE]),
-        error_logger:error_msg("init() args ~p~n", [PropList]),
         Name = proplists:get_value(name, PropList),
         CommandMap = proplists:get_value(command_map, PropList),
         ResponseMap = proplists:get_value(response_map, PropList),
@@ -65,23 +63,17 @@ handle_call({translate, Command}, _From, State=#device_state{target=Target,
                                                              data_state=DataState,
                                                              clean_response_action=CleanResponseAction,
                                                              response_map=ResponseMap}) ->
-        error_logger:error_msg("In ~p ~p", [State#device_state.name, Command]),
         case translate(Command, CommandMap, DataState) of
             {multi, Series} ->
                 Results = lists:reverse(lists:foldl(fun({sleep, Time}=_Action, Acc) ->
-                                    error_logger:error_msg("About to sleep ~p~n", [Time]),
                                     timer:sleep(Time),
                                     Acc;
                                  (Action, Acc) ->
-                                    error_logger:error_msg("Sending ~p~n", [Action]),
                                     Result = send_command_sync(Action, Target, CleanResponseAction),
-                                    error_logger:error_msg("Got ~p~n", [Result]),
                                     [Result | Acc]
                             end, [],Series)),
 
-                error_logger:error_msg("multi results is ~p~n", [Results]),
                 ParsedResponses = parse_response(lists:flatten(Results), Parser),
-                error_logger:error_msg("multi parsse is ~p~n", [ParsedResponses]),
                 Translated = translate(ParsedResponses, ResponseMap, DataState),
 
                 NewState = apply_data_state(ParsedResponses, State),
@@ -154,12 +146,12 @@ apply_data_state(_TranslatedResponses=[{Resp, Val}|Rest], State=#device_state{da
         error ->
             DataState;
         {ok, _} ->
+            error_logger:error_msg("Updateing data state for ~p to ~p", [Resp, Val]),
             maps:put(Resp, Val, DataState)
     end,
     apply_data_state(Rest, State#device_state{data_state=NewDataState}).
 
 parse_response(Response, Parser) ->
-    error_logger:error_msg("Response ~p~n", [Response]),
     {match, Matches} = re:run(Response, Parser, [global, {capture, all_but_first, list}]),
     ToTuple = fun
                   ([E,E2|_]) -> {E, E2};
