@@ -202,4 +202,32 @@ send_command_sync(Command, {tcp_serial, Ip, Port}, CleanResponseAction) ->
 translate_command(Device, Command) ->
     gen_server:call(Device, {translate, Command}).
 
+-include_lib("eunit/include/eunit.hrl").
+
+-ifdef(TEST).
+
+translate_datum_test() ->
+    DataState = #{},
+    TranslateMap = #{ 
+      "set_volume" => fun(Cmd, Val) -> io_lib:format("~s ~s", [Cmd, Val]) end,
+      "power_on" => "PowerOn"
+    },
+
+    "set_volume 100" = lists:flatten(translate({"set_volume", "100"}, TranslateMap, DataState)),
+    "PowerOn" = lists:flatten(translate({"power_on", ""}, TranslateMap, DataState)),
+    "" = translate({"another", "cmd"}, TranslateMap, DataState).
+
+translate_with_prev_cache_state_test() ->
+    DataState = #{ "VOLUME" => "10", "POWER" => "1" },
+    TranslateMap = #{ "set_volume" => fun(Cmd, Val, IDataState) -> io_lib:format("~s ~s ~s", [Cmd, Val, maps:get("VOLUME", IDataState)]) end },
+
+    "set_volume 100 10" = lists:flatten(translate({"set_volume", "100"}, TranslateMap, DataState)).
+
+translate_multipart_test() ->
+    DataState = #{},
+    TranslateMap = #{ "do_seq" => {multi, ["Cmd1", "Cmd2", "Cmd3"]} },
+
+    {multi, ["Cmd1", "Cmd2", "Cmd3"]} = translate({"do_seq", ""}, TranslateMap, DataState).
+-endif.
+
 

@@ -1,0 +1,12 @@
+#!/bin/bash
+
+TEST_FILE="$1"
+
+if [ "$TEST_FILE" == "" ]; then
+    echo "Usage: $0 <module>"
+    exit 1
+fi
+
+if make generate; then
+    erl -noshell -pa ebin -eval "eunit:test($TEST_FILE, [verbose])" -s init stop
+fi
