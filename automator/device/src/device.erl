@@ -11,7 +11,7 @@
          terminate/2,
          code_change/3]).
 
--export([translate/2]).
+-export([translate_command/2]).
 
 -record(device_state, {
           name :: atom,
@@ -49,10 +49,17 @@ init([PropList]) ->
         gen_server:cast(self(), {register, Target}),
         {ok, State}.
 
-handle_call({translate, Command}, _From, State=#device_state{target=Target}) ->
+handle_call({translate, Command}, _From, State=#device_state{target=Target,
+                                                             response_parser=Parser,
+                                                             command_map=CommandMap,
+                                                             response_map=ResponseMap}) ->
         error_logger:error_msg("In ~p ~p", [State#device_state.name, Command]),
-        Result = send_command_sync(Command, Target),
-        {reply, Result, State};
+        TranslatedCommand = translate(Command, CommandMap),
+        Result = send_command_sync(TranslatedCommand, Target),
+
+        Translated = translate(parse_response(Result, Parser), ResponseMap),
+
+        {reply, Translated, State};
 handle_call(_Request, _From, State) ->
         Reply = ok,
         {reply, Reply, State}.
@@ -75,10 +82,45 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
         {ok, State}.
 
+parse_response(Response, Parser) ->
+    {match, Matches} = re:run(Response, Parser, [{capture, all_but_first, list}]),
+    ToTuple = fun([E,E2|_]) -> {E, E2} end,
+    ToTuple(Matches).
+
+translate(_Data={LeftRaw, RightRaw}, TranslateMap) ->
+    Left = normalize(LeftRaw),
+    Right = normalize(RightRaw),
+    case maps:find(Left, TranslateMap) of
+        {ok, Translator} when is_function(Translator, 2)->
+            Translator(Left, Right);
+        {ok, {format, Type, Translator}} ->
+            case Type of
+                cmd ->
+                    io_lib:format(Translator, [Left]);
+                val ->
+                    io_lib:format(Translator, [Right]);
+                cmd_val ->
+                    io_lib:format(Translator, [Left, Right]);
+                val_cmd ->
+                    io_lib:format(Translator, [Right, Left])
+            end;
+        {ok, Translator} ->
+            Translator;
+        error ->
+            error_logger:error_msg("No translation for pattern ~p:Val ~p ~n", [Left, Right])
+    end.
+
+normalize(Binary) when is_binary(Binary) ->
+    binary_to_list(Binary);
+normalize(Atom) when is_atom(Atom) ->
+    atom_to_list(Atom);
+normalize(String) ->
+    String.
+
 send_command_sync(Command, {tcp_serial, Ip, Port}) ->
     serial_tcp_bridge:sync_serial_command({Ip, Port}, Command).
 
-translate(Device, Command) ->
+translate_command(Device, Command) ->
     gen_server:call(Device, {translate, Command}).
 
 
