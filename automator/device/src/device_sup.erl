@@ -66,7 +66,7 @@ init([]) ->
         "input" => [{cmd, "input"}, {res, "FN"}]
     }},
     Target = {target, {tcp_serial, "192.168.1.124", 4999}},
-    CleanResponse = {clean_response_action, fun(Resp) -> case lists:filter(fun(Char) -> Char =/= 0 end, Resp) of
+    CleanResponse = {clean_response_action, fun(Resp) -> case lists:filter(fun(Char) -> (Char >= 10) and (Char =< 126) end, Resp) of
                                      [] -> "NULL0\r\n";
                                      R -> R
                                  end 
