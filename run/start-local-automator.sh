@@ -18,4 +18,6 @@ echo 'starting...'
     -setcookie $COOKIE \
     -kernel error_logger '{file,"'$ABSLOGPATH'"}' \
     -boot start_sasl \
-    -sname sandbox
+    -sname sandbox \
+    -automator http_frontend_port 9574 \
+    -automator tcp_frontend_port 9575

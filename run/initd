@@ -49,7 +49,9 @@ case "$ACTION" in
             -kernel error_logger \{file,'"'$LOGDIR/$LOGFILE'"'\} \
             -setcookie $COOKIE \
             -sname automator \
-            -boot start_sasl
+            -boot start_sasl \
+            -automator http_frontend_port 9374 \
+            -automator tcp_frontend_port 9375
         ;;
     stop)
         echo "Stopping automator"

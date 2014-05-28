@@ -10,7 +10,8 @@ start_link() ->
 
 init([]) ->
     error_logger:info_msg("~p:init()~n", [?MODULE]),
-    TcpListener = ranch:child_spec(automator_tcp_listener, 5, ranch_tcp, [{port, 9375}, {max_connections, 100}], text_protocol, []),
+    Port = application:get_env(automator, tcp_frontend_port, 9375),
+    TcpListener = ranch:child_spec(automator_tcp_listener, 5, ranch_tcp, [{port, Port}, {max_connections, 100}], text_protocol, []),
 
     {ok, {{one_for_all, 10, 10}, [TcpListener]}}.
 
