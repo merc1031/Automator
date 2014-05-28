@@ -1,3 +1,4 @@
+#!/bin/bash
 export PIPE_DIR=/var/tmp/run
 
 LOGDIR=./rel/automator/log
@@ -15,7 +16,6 @@ echo 'starting...'
 ./rel/automator/bin/automator start \
     +W w +P 100100 \
     -setcookie $COOKIE \
-    -s automator \
     -kernel error_logger '{file,"'$ABSLOGPATH'"}' \
     -boot start_sasl \
     -sname sandbox
