@@ -1,0 +1,70 @@
+#!/bin/bash
+
+if [ -f /etc/default/automator ]; then
+    . /etc/default/automator
+fi
+
+ROOT_DIR=/usr/local/src/automator
+ACTION=$1
+
+SUDO=''
+if [ "`whoami`" != "$USER" ]; then
+    SUDO="sudo -i -u $USER"
+fi
+
+RUN_DIR="/var/run/automator/"
+if [ ! -d "$RUN_DIR" ]; then
+    if ! mkdir -p "$RUN_DIR"; then
+        echo "$RUN_DIR could not be created!"
+        exit 1
+    fi
+fi
+if $SUDO test ! -O "$RUN_DIR"; then
+    if ! chown "$USER:$USER" "$RUN_DIR"; then
+        echo "Couldn't change ownership of $RUN_DIR!"
+        exit 1
+    fi
+fi
+
+if [ "`whoami`" != "$USER" ]; then
+    exec sudo -i -u "$USER" "$0" "$ACTION"
+fi
+
+LOGDIR="/var/log/automator"
+LOGFILE="automator-logfile.txt"
+if [ ! -d "$LOGDIR" ]; then
+    echo "$LOGDIR does not exist"
+    exit 1
+fi
+if [ ! -O "$LOGDIR" ]; then
+    echo "$LOGDIR is not owned by $USER"
+    exit 1
+fi
+
+case "$ACTION" in
+    start)
+        echo "Spawning automator"
+        $ROOT_DIR/rel/automator/bin/automator start \
+            +W w +P 1001001 \
+            -kernel error_logger \{file,'"'$LOGDIR/$LOGFILE'"'\} \
+            -setcookie $COOKIE \
+            -sname automator \
+            -boot start_sasl
+        ;;
+    stop)
+        echo "Stopping automator"
+        $ROOT_DIR/rel/automator/bin/automator stop -sname automator -setcookie $COOKIE
+        ;;
+    status)
+        echo "Checking status of $ROLE@$HOST"
+        STATUS=`$ROOT_DIR/rel/automator/bin/automator ping -sname automator -setcookie $COOKIE`
+        if [ "$STATUS" == pong ]; then
+            echo "Automator is running"
+        else
+            echo "Automator is not running"
+        fi
+        ;;
+    *)
+        echo "Usage: $0 (start|stop|status|rotate-log)"
+        ;;
+esac
