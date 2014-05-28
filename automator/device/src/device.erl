@@ -79,7 +79,7 @@ handle_cast({translate, Listener, Command}, State=#device_state{target=Target,
                                                              waiting=Waiting,
                                                              data_state=DataState
                                                              }) ->
-        State2 = State#device_state{waiting=lists:append({Listener, link(Listener)}, Waiting)},
+        State2 = State#device_state{waiting=lists:append([{Listener, link(Listener)}], Waiting)},
         case translate(Command, CommandMap, DataState) of
             {multi, Series} ->
                 lists:reverse(lists:foreach(fun({sleep, Time}=_Action) ->
@@ -105,14 +105,18 @@ handle_info({response, Response}, State=#device_state{
                                            waiting=Waiting,
                                            response_parser=Parser
                                            }) ->
+    error_logger:error_msg("Device ~p got a response ~p", [State#device_state.name, Response]),
     ParsedResponses = parse_response(lists:flatten(CleanResponseAction(Response)), Parser),
     Translated = translate(ParsedResponses, ResponseMap, DataState),
 
-    lists:foreach(fun(Listener) -> Listener ! {response, Translated} end, Waiting),
+    lists:foreach(fun({Listener, _}) ->
+                          error_logger:error_msg("Replying to ~p", [Listener]),
+                          Listener ! {response, Translated} end, Waiting),
 
     NewState = apply_data_state(ParsedResponses, State),
     {noreply, NewState};
 handle_info(_Packet={'EXIT', Pid, _Reason}, State=#device_state{waiting=Waiting}) ->
+    error_logger:error_msg("A waiting listener died ~p", [Pid]),
     {noreply, State#device_state{waiting=lists:filter(fun({ListPid, _ListLinkResult}) -> Pid =/= ListPid end, Waiting)}};
 handle_info(_Info, State) ->
         {noreply, State}.

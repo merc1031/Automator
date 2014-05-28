@@ -79,17 +79,19 @@ handle_cast({register_device, DeviceModule, Ip, Port}, State=#serial_tcp_bridge_
 handle_cast({command, Target, Command}, State) ->
     State2 = send_command_to_device(Target, lists:flatten(Command), State),
     {noreply, State2};
-handle_cast({tcp, Socket, Data}, State=#serial_tcp_bridge_state{
-                                          module_map=ModuleMap,
-                                          ip_socket_map=IpSocketMap
-                                         }) ->
-    Id = maps:get(Socket, IpSocketMap),
-    DeviceModule = maps:get(Id, ModuleMap),
-    DeviceModule ! {response, Data},
-    {no_reply, State};
 handle_cast(_Msg, State) ->
         {noreply, State}.
 
+handle_info({tcp, Socket, Data}, State=#serial_tcp_bridge_state{
+                                          module_map=ModuleMap,
+                                          ip_socket_map=IpSocketMap
+                                         }) ->
+    error_logger:error_msg("TcpSerial got a response ~p", [Data]),
+    Id = maps:get(Socket, IpSocketMap),
+    DeviceModule = maps:get(Id, ModuleMap),
+    error_logger:error_msg("Got module ~p for ~p mapped to ~p", [DeviceModule, Socket, Id]),
+    DeviceModule ! {response, Data},
+    {noreply, State};
 handle_info(_Info, State) ->
         {noreply, State}.
 
@@ -103,5 +105,6 @@ register_device(DeviceModule, Ip, Port) ->
     gen_server:cast(?MODULE, {register_device, DeviceModule, Ip, Port}).
 
 send_command(Target, Command) -> 
+    error_logger:error_msg("Getting a command casted ~p ~p", [Target, Command]),
     gen_server:cast(?MODULE, {command, Target, Command}).
 
