@@ -11,7 +11,7 @@
          terminate/2,
          code_change/3]).
 
--export([translate_command/2]).
+-export([translate_command/3]).
 
 -record(device_state, {
           name :: atom,
@@ -23,6 +23,7 @@
           data_state = maps:new() :: map(),
           clean_response_action :: fun((list()) -> list()),
           data_state_refresher = maps:new() :: map(),
+          waiting = lists:new() :: list(),
           data_state_timer :: timer:tref()
 }).
 
@@ -33,6 +34,7 @@ start_link(PropList) ->
         gen_server:start_link({local, Name}, ?MODULE, [PropList], []).
 
 init([PropList]) ->
+        process_flag(trap_exit, true),
         error_logger:error_msg("~p:init()~n", [?MODULE]),
         Name = proplists:get_value(name, PropList),
         CommandMap = proplists:get_value(command_map, PropList),
@@ -57,35 +59,6 @@ init([PropList]) ->
         gen_server:cast(self(), {register, Target, InitialDataState}),
         {ok, State}.
 
-handle_call({translate, Command}, _From, State=#device_state{target=Target,
-                                                             response_parser=Parser,
-                                                             command_map=CommandMap,
-                                                             data_state=DataState,
-                                                             clean_response_action=CleanResponseAction,
-                                                             response_map=ResponseMap}) ->
-        case translate(Command, CommandMap, DataState) of
-            {multi, Series} ->
-                Results = lists:reverse(lists:foldl(fun({sleep, Time}=_Action, Acc) ->
-                                    timer:sleep(Time),
-                                    Acc;
-                                 (Action, Acc) ->
-                                    Result = send_command_sync(Action, Target, CleanResponseAction),
-                                    [Result | Acc]
-                            end, [],Series)),
-
-                ParsedResponses = parse_response(lists:flatten(Results), Parser),
-                Translated = translate(ParsedResponses, ResponseMap, DataState),
-
-                NewState = apply_data_state(ParsedResponses, State),
-                {reply, Translated, NewState};
-            TranslatedCommand ->
-                Result = send_command_sync(TranslatedCommand, Target, CleanResponseAction),
-                ParsedResponses = parse_response(Result, Parser),
-                Translated = translate(ParsedResponses, ResponseMap, DataState),
-
-                NewState = apply_data_state(ParsedResponses, State),
-                {reply, Translated, NewState}
-        end;
 handle_call(_Request, _From, State) ->
         Reply = ok,
         {reply, Reply, State}.
@@ -101,15 +74,61 @@ handle_cast({init}, State=#device_state{}) ->
     NewState = refresh_data_state(State),
     error_logger:error_msg("Initial state set to ~p~n", [NewState]),
     {noreply, NewState};
+handle_cast({translate, Listener, Command}, State=#device_state{target=Target,
+                                                             command_map=CommandMap,
+                                                             waiting=Waiting,
+                                                             data_state=DataState
+                                                             }) ->
+        State2 = State#device_state{waiting=lists:append({Listener, link(Listener)}, Waiting)},
+        case translate(Command, CommandMap, DataState) of
+            {multi, Series} ->
+                lists:reverse(lists:foreach(fun({sleep, Time}=_Action) ->
+                                    timer:sleep(Time);
+                                 (Action) ->
+                                    send_command(Action, Target)
+                            end, Series));
+
+            TranslatedCommand ->
+                send_command(TranslatedCommand, Target)
+        end,
+        {noreply, State2};
 handle_cast(_Msg, State) ->
         {noreply, State}.
 
 handle_info(refresh_data_state, State=#device_state{}) ->
     NewState = refresh_data_state(State),
     {noreply, NewState};
+handle_info({response, Response}, State=#device_state{
+                                           clean_response_action=CleanResponseAction,
+                                           response_map=ResponseMap,
+                                           data_state=DataState,
+                                           waiting=Waiting,
+                                           response_parser=Parser
+                                           }) ->
+    ParsedResponses = parse_response(lists:flatten(CleanResponseAction(Response)), Parser),
+    Translated = translate(ParsedResponses, ResponseMap, DataState),
+
+    lists:foreach(fun(Listener) -> Listener ! {response, Translated} end, Waiting),
+
+    NewState = apply_data_state(ParsedResponses, State),
+    {noreply, NewState};
+handle_info(_Packet={'EXIT', Pid, _Reason}, State=#device_state{waiting=Waiting}) ->
+    {noreply, State#device_state{waiting=lists:filter(fun({ListPid, _ListLinkResult}) -> Pid =/= ListPid end, Waiting)}};
 handle_info(_Info, State) ->
         {noreply, State}.
 
+
+%                ParsedResponses = parse_response(lists:flatten(Results), Parser),
+%                Translated = translate(ParsedResponses, ResponseMap, DataState),
+%
+%                NewState = apply_data_state(ParsedResponses, State),
+%                {reply, Translated, NewState};
+%
+%                ParsedResponses = parse_response(Result, Parser),
+%                Translated = translate(ParsedResponses, ResponseMap, DataState),
+%
+%                NewState = apply_data_state(ParsedResponses, State),
+%
 terminate(_Reason, _State) ->
         ok.
 
@@ -118,26 +137,26 @@ code_change(_OldVsn, State, _Extra) ->
 
 refresh_data_state(State=#device_state{command_map=CommandMap,
                                         target=Target,
-                                        clean_response_action=CleanResponseAction,
-                                        data_state_refresher=DataStateRefresher,
-                                        response_parser=Parser}) ->
-    maps:fold(fun(_Key, InitState, StateAcc=#device_state{data_state=DataStateIn}) ->
+                                        data_state_refresher=DataStateRefresher
+                                        }) ->
+    maps:map(fun(_Key, InitState) ->
         Cmd = proplists:get_value(cmd, InitState),
         case maps:find(Cmd, CommandMap) of
             {ok, RawCmd} ->
-                Res = proplists:get_value(res, InitState),
-                Result = send_command_sync(RawCmd, Target, CleanResponseAction),
-                Parsed = parse_response(Result, Parser),
-                case lists:filter(fun({L,_}) -> L =:= Res end, Parsed) of
-                    [] ->
-                        StateAcc;
-                    Pruned ->
-                        {_, Val} = hd(lists:reverse(Pruned)), %%TODO better metric for keeping init value
-                        StateAcc#device_state{data_state=maps:put(Res, Val, DataStateIn)}
-                end;
+                send_command(RawCmd, Target);
             error ->
-                StateAcc
+                ok
         end end, State, DataStateRefresher).
+
+%                Res = proplists:get_value(res, InitState),
+%                Parsed = parse_response(Result, Parser),
+%                case lists:filter(fun({L,_}) -> L =:= Res end, Parsed) of
+%                    [] ->
+%                        StateAcc;
+%                    Pruned ->
+%                        {_, Val} = hd(lists:reverse(Pruned)), %%TODO better metric for keeping init value
+%                        StateAcc#device_state{data_state=maps:put(Res, Val, DataStateIn)}
+%                end;
 %%Optimize this to only perform the LAST update to each Resp type we care about
 apply_data_state([], State=#device_state{}) ->
     State;
@@ -196,11 +215,14 @@ normalize(Atom) when is_atom(Atom) ->
 normalize(String) ->
     String.
 
-send_command_sync(Command, {tcp_serial, Ip, Port}, CleanResponseAction) ->
-    CleanResponseAction(serial_tcp_bridge:sync_serial_command({Ip, Port}, Command)).
+send_command(Command, {tcp_serial, Ip, Port}) ->
+    serial_tcp_bridge:send_command({Ip, Port}, Command).
 
-translate_command(Device, Command) ->
-    gen_server:call(Device, {translate, Command}).
+%send_command_sync(Command, {tcp_serial, Ip, Port}, CleanResponseAction) ->
+%    CleanResponseAction(serial_tcp_bridge:sync_serial_command({Ip, Port}, Command)).
+
+translate_command(Listener, Device, Command) ->
+    gen_server:cast(Device, {translate, Listener, Command}).
 
 -include_lib("eunit/include/eunit.hrl").
 
