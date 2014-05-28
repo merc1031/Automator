@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # -*- tab-width:4;indent-tabs-mode:nil -*-
 # ex: ts=4 sw=4 et
 
@@ -75,9 +75,9 @@ else
 fi
 
 # Extract the target node name from node.args
-NAME_ARG=`egrep '^\-s?name' $VMARGS_PATH`
+NAME_ARG=`echo $@ | grep -E -o '\-s?name *\w+' || egrep '^\-s?name' $VMARGS_PATH`
 if [ -z "$NAME_ARG" ]; then
-    echo "vm.args needs to have either -name or -sname parameter."
+    echo "vm.args or args needs to have either -name or -sname parameter."
     exit 1
 fi
 
@@ -91,9 +91,9 @@ REMSH_NAME_ARG="$REMSH_TYPE remsh`date +%s`@`echo $REMSH_NAME | awk -F@ '{print 
 REMSH_REMSH_ARG="-remsh $REMSH_NAME"
 
 # Extract the target cookie
-COOKIE_ARG=`grep '^\-setcookie' $VMARGS_PATH`
+COOKIE_ARG=`echo $@ | grep -E -o '\-setcookie *\w+' || grep '^\-setcookie' $VMARGS_PATH`
 if [ -z "$COOKIE_ARG" ]; then
-    echo "vm.args needs to have a -setcookie parameter."
+    echo "vm.args or args needs to have a -setcookie parameter."
     exit 1
 fi
 
@@ -157,7 +157,7 @@ case "$1" in
                 HEART_OPTION="start_boot"
                 ;;
         esac
-        RUN_PARAM=$(printf "\'%s\' " "$@")
+        RUN_PARAM=$(printf "%q " "$@")
         HEART_COMMAND="$RUNNER_BASE_DIR/bin/$SCRIPT $HEART_OPTION $RUN_PARAM"
         export HEART_COMMAND
         mkdir -p $PIPE_DIR
