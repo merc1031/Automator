@@ -1,3 +1,3 @@
-USER=leo
+USER=#my_user_here#
 COOKIE=tis
 ABSLOGPATH=/var/log/automator/automator.log
