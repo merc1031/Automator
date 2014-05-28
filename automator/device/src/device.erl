@@ -19,11 +19,11 @@
           response_map = maps:new() :: map(),
           response_parser :: re:re(),
           target :: module(),
-          listeners = lists:new() :: list(),
+          listeners = [] :: list(),
           data_state = maps:new() :: map(),
           clean_response_action :: fun((list()) -> list()),
           data_state_refresher = maps:new() :: map(),
-          waiting = lists:new() :: list(),
+          waiting = [] :: list(),
           data_state_timer :: timer:tref()
 }).
 
@@ -56,7 +56,7 @@ init([PropList]) ->
                    data_state_refresher = InitialDataState,
                    data_state_timer = TimerRef
                   },
-        gen_server:cast(self(), {register, Target, InitialDataState}),
+        gen_server:cast(self(), {register, Target}),
         {ok, State}.
 
 handle_call(_Request, _From, State) ->
@@ -66,11 +66,11 @@ handle_call(_Request, _From, State) ->
 handle_cast({register, undefined, _}, State) ->
         error_logger:warning_msg("Tried to register undefined target"),
         {noreply, State};
-handle_cast({register, {tcp_serial, Ip, Port}}, State) ->
-        serial_tcp_bridge:register_device(Ip, Port),
-        gen_server:cast(self(), {init}),
+handle_cast({register, {tcp_serial, Ip, Port}}, State=#device_state{name=Name}) ->
+        serial_tcp_bridge:register_device(Name, Ip, Port),
+        gen_server:cast(self(), init),
         {noreply, State};
-handle_cast({init}, State=#device_state{}) ->
+handle_cast(init, State=#device_state{}) ->
     NewState = refresh_data_state(State),
     error_logger:error_msg("Initial state set to ~p~n", [NewState]),
     {noreply, NewState};
@@ -146,7 +146,8 @@ refresh_data_state(State=#device_state{command_map=CommandMap,
                 send_command(RawCmd, Target);
             error ->
                 ok
-        end end, State, DataStateRefresher).
+        end end, DataStateRefresher),
+    State.
 
 %                Res = proplists:get_value(res, InitState),
 %                Parsed = parse_response(Result, Parser),
