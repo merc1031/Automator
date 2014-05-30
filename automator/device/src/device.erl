@@ -23,7 +23,8 @@
           data_state = maps:new() :: map(),
           clean_response_action :: fun((list()) -> list()),
           data_state_refresher = maps:new() :: map(),
-          data_state_timer :: timer:tref()
+          data_state_timer :: timer:tref(),
+          old_data = <<>> :: binary()
 }).
 
 
@@ -62,6 +63,7 @@ handle_call({translate, Command}, _From, State=#device_state{target=Target,
                                                              command_map=CommandMap,
                                                              data_state=DataState,
                                                              clean_response_action=CleanResponseAction,
+                                                             old_data=OldData,
                                                              response_map=ResponseMap}) ->
         case translate(Command, CommandMap, DataState) of
             {multi, Series} ->
@@ -73,17 +75,17 @@ handle_call({translate, Command}, _From, State=#device_state{target=Target,
                                     [Result | Acc]
                             end, [],Series)),
 
-                ParsedResponses = parse_response(lists:flatten(Results), Parser),
+                {ParsedResponses, Buffer} = parse_response(lists:flatten(Results), OldData, Parser),
                 Translated = translate(ParsedResponses, ResponseMap, DataState),
 
-                NewState = apply_data_state(ParsedResponses, State),
+                NewState = apply_data_state(ParsedResponses, State#device_state{old_data=Buffer}),
                 {reply, Translated, NewState};
             TranslatedCommand ->
                 Result = send_command_sync(TranslatedCommand, Target, CleanResponseAction),
-                ParsedResponses = parse_response(Result, Parser),
+                {ParsedResponses, Buffer} = parse_response(Result, OldData, Parser),
                 Translated = translate(ParsedResponses, ResponseMap, DataState),
 
-                NewState = apply_data_state(ParsedResponses, State),
+                NewState = apply_data_state(ParsedResponses, State#device_state{old_data=Buffer}),
                 {reply, Translated, NewState}
         end;
 handle_call(_Request, _From, State) ->
@@ -120,20 +122,23 @@ refresh_data_state(State=#device_state{command_map=CommandMap,
                                         target=Target,
                                         clean_response_action=CleanResponseAction,
                                         data_state_refresher=DataStateRefresher,
-                                        response_parser=Parser}) ->
+                                        response_parser=Parser,
+                                        old_data=OldData
+                                      }) ->
     maps:fold(fun(_Key, InitState, StateAcc=#device_state{data_state=DataStateIn}) ->
         Cmd = proplists:get_value(cmd, InitState),
         case maps:find(Cmd, CommandMap) of
             {ok, RawCmd} ->
                 Res = proplists:get_value(res, InitState),
                 Result = send_command_sync(RawCmd, Target, CleanResponseAction),
-                Parsed = parse_response(Result, Parser),
+                {Parsed, Rem} = parse_response(Result, OldData, Parser),
+                StateAcc2 = StateAcc#device_state{old_data=Rem},
                 case lists:filter(fun({L,_}) -> L =:= Res end, Parsed) of
                     [] ->
-                        StateAcc;
+                        StateAcc2;
                     Pruned ->
                         {_, Val} = hd(lists:reverse(Pruned)), %%TODO better metric for keeping init value
-                        StateAcc#device_state{data_state=maps:put(Res, Val, DataStateIn)}
+                        StateAcc2#device_state{data_state=maps:put(Res, Val, DataStateIn)}
                 end;
             error ->
                 StateAcc
@@ -151,8 +156,8 @@ apply_data_state(_TranslatedResponses=[{Resp, Val}|Rest], State=#device_state{da
     end,
     apply_data_state(Rest, State#device_state{data_state=NewDataState}).
 
-parse_response(Response, Parser) ->
-    {match, Matches} = re:run(Response, Parser, [global, {capture, all_but_first, list}]),
+parse_response(Response, OldData, _Parser={Parser, PState}) ->
+    Matches = Parser(Response, OldData, PState),
     ToTuple = fun
                   ([E,E2|_]) -> {E, E2};
                   ([E|_]) -> {E, ""}
