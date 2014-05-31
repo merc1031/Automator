@@ -7,6 +7,7 @@
 
 %% Supervisor callbacks
 -export([init/1]).
+-export([line_protocol_helper/3]).
 
 %% Helper macro for declaring children of supervisor
 -define(CHILD(Name, I, Type, Params), {Name, {I, start_link, [Params]}, permanent, 5000, Type, [I]}).
@@ -64,19 +65,12 @@ init([]) ->
 
     ResponseParser = {response_parser, {
                         fun(Response, OldData, Parser) ->
-                                Total = <<OldData/binary, Response/binary>>,
-                                fun AccumDataAndParse(Remaining, {Ret, <<>>}) ->
-                                case binary:split(Remaining, <<"\r\n">>) of
-                                    [Data] -> % no newline
-                                        {Ret, Data};
-                                    [Line, Rest] ->
-                                        AccumDataAndParse(Rest, {<<Ret/binary, Line/binary>>, <<>>})
-                                end end,
-                        {Working, Buffer} = AccumDataAndParse(Total, {<<>>,<<>>}),
-                        {match, Matches} = re:run(Working,Parser, [global, {capture, all_but_first, list}]),
-                        {Matches, Buffer}
-                                        end,
-                                                fun() -> {ok, Re} = re:compile("([^0-9]+?)([0-9]*?)"), Re end() },
+                            {Working, Buffer} = line_protocol_helper(Response, OldData, <<"\r\n">>),
+                            {match, Matches} = re:run(Working, Parser, [global, {capture, all_but_first, list}]),
+                            {Matches, Buffer}
+                        end,
+                        fun() -> {ok, Re} = re:compile("([^0-9]+?)([0-9]*?)"), Re end()
+    }},
     ResponseMap = {response_map, #{
         "VOL" => fun(_Cmd, Val) -> io_lib:format("vol~p~n", [(list_to_integer(Val) / 2) - 80.5]) end,
         "PWR" => fun(_Cmd, Val) -> io_lib:format("power~s~n", [case Val of "1" -> "Off"; "0" -> "On" end]) end,
@@ -112,4 +106,16 @@ receiver_inputs(Val) ->
         _ ->
             "Nothing"
     end.
+
+line_protocol_helper(NewData, OldData, Delim) ->
+    Total = <<OldData/binary, NewData/binary>>,
+    Acc = fun AccumDataAndParse(Remaining, {Ret, <<>>}) ->
+        case binary:split(Remaining, Delim) of
+            [Data] -> % no delim found
+                {Ret, Data};
+            [Line, Rest] ->
+                AccumDataAndParse(Rest, {<<Ret/binary, Line/binary>>, <<>>})
+        end
+    end,
+    Acc(Total, {<<>>,<<>>}).
 
