@@ -157,18 +157,18 @@ apply_data_state(_TranslatedResponses=[{Resp, Val}|Rest], State=#device_state{da
     apply_data_state(Rest, State#device_state{data_state=NewDataState}).
 
 parse_response(Response, OldData, _Parser={Parser, PState}) ->
-    Matches = Parser(Response, OldData, PState),
+    {Matches, Buffer} = Parser(Response, OldData, PState),
     ToTuple = fun
                   ([E,E2|_]) -> {E, E2};
-                  ([E|_]) -> {E, ""}
+                  ([E|_]) -> {E, <<"">>}
               end,
-    lists:map(ToTuple, Matches).
+    {lists:map(ToTuple, Matches), Buffer}.
 
 translate(Data, TranslateMap, DataState) when is_list(Data) ->
     string:join(lists:map(fun(X) -> translate(X, TranslateMap, DataState) end, Data), "");
 translate(_Data={LeftRaw, RightRaw}, TranslateMap, DataState) ->
-    Left = normalize(LeftRaw),
-    Right = normalize(RightRaw),
+    Left = LeftRaw,
+    Right = RightRaw,
     case maps:find(Left, TranslateMap) of
         {ok, Translator} when is_function(Translator, 3)->
             Translator(Left, Right, DataState);
@@ -190,16 +190,9 @@ translate(_Data={LeftRaw, RightRaw}, TranslateMap, DataState) ->
         {ok, Translator} ->
             Translator;
         error ->
-            error_logger:error_msg("No translation for pattern ~p:Val ~p ~n", [Left, Right]),
+            error_logger:error_msg("No translation for pattern ~p:Val ~p In ~p~n", [Left, Right, TranslateMap]),
             ""
     end.
-
-normalize(Binary) when is_binary(Binary) ->
-    binary_to_list(Binary);
-normalize(Atom) when is_atom(Atom) ->
-    atom_to_list(Atom);
-normalize(String) ->
-    String.
 
 send_command_sync(Command, {tcp_serial, Ip, Port}, CleanResponseAction) ->
     CleanResponseAction(serial_tcp_bridge:sync_serial_command({Ip, Port}, Command)).
