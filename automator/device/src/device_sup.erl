@@ -101,6 +101,8 @@ receiver_inputs(Val) ->
             "Nothing"
     end.
 
+%-spec line_protocol_helper(binary(), binary(), binary()) -> {binary(), binary()}.
+-spec line_protocol_helper(A, A, A) -> {A, A} when A :: binary().
 line_protocol_helper(NewData, OldData, Delim) ->
     Total = <<OldData/binary, NewData/binary>>,
     Acc = fun AccumDataAndParse(Remaining, {Ret, <<>>}) ->
