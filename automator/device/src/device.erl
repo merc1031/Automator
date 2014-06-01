@@ -24,7 +24,8 @@
           clean_response_action :: fun((list()) -> list()),
           data_state_refresher = maps:new() :: map(),
           waiting = [] :: list(),
-          data_state_timer :: timer:tref()
+          data_state_timer :: timer:tref(),
+          old_data = <<>> :: binary()
 }).
 
 
@@ -103,17 +104,19 @@ handle_info({response, Response}, State=#device_state{
                                            response_map=ResponseMap,
                                            data_state=DataState,
                                            waiting=Waiting,
-                                           response_parser=Parser
+                                           response_parser=Parser,
+                                           old_data=OldData
                                            }) ->
     error_logger:error_msg("Device ~p got a response ~p", [State#device_state.name, Response]),
-    ParsedResponses = parse_response(lists:flatten(CleanResponseAction(Response)), Parser),
+    {ParsedResponses, Buffer} = parse_response(lists:flatten(CleanResponseAction(Response)), OldData, Parser),
+    State2 = State#device_state{old_data=Buffer},
     Translated = translate(ParsedResponses, ResponseMap, DataState),
 
     lists:foreach(fun({Listener, _}) ->
                           error_logger:error_msg("Replying to ~p", [Listener]),
                           Listener ! {response, Translated} end, Waiting),
 
-    NewState = apply_data_state(ParsedResponses, State),
+    NewState = apply_data_state(ParsedResponses, State2),
     {noreply, NewState};
 handle_info(_Packet={'EXIT', Pid, _Reason}, State=#device_state{waiting=Waiting}) ->
     error_logger:error_msg("A waiting listener died ~p", [Pid]),
@@ -122,17 +125,6 @@ handle_info(_Info, State) ->
         {noreply, State}.
 
 
-%                ParsedResponses = parse_response(lists:flatten(Results), Parser),
-%                Translated = translate(ParsedResponses, ResponseMap, DataState),
-%
-%                NewState = apply_data_state(ParsedResponses, State),
-%                {reply, Translated, NewState};
-%
-%                ParsedResponses = parse_response(Result, Parser),
-%                Translated = translate(ParsedResponses, ResponseMap, DataState),
-%
-%                NewState = apply_data_state(ParsedResponses, State),
-%
 terminate(_Reason, _State) ->
         ok.
 
@@ -153,15 +145,6 @@ refresh_data_state(State=#device_state{command_map=CommandMap,
         end end, DataStateRefresher),
     State.
 
-%                Res = proplists:get_value(res, InitState),
-%                Parsed = parse_response(Result, Parser),
-%                case lists:filter(fun({L,_}) -> L =:= Res end, Parsed) of
-%                    [] ->
-%                        StateAcc;
-%                    Pruned ->
-%                        {_, Val} = hd(lists:reverse(Pruned)), %%TODO better metric for keeping init value
-%                        StateAcc#device_state{data_state=maps:put(Res, Val, DataStateIn)}
-%                end;
 %%Optimize this to only perform the LAST update to each Resp type we care about
 apply_data_state([], State=#device_state{}) ->
     State;
@@ -175,19 +158,19 @@ apply_data_state(_TranslatedResponses=[{Resp, Val}|Rest], State=#device_state{da
     end,
     apply_data_state(Rest, State#device_state{data_state=NewDataState}).
 
-parse_response(Response, Parser) ->
-    {match, Matches} = re:run(Response, Parser, [global, {capture, all_but_first, list}]),
+parse_response(Response, OldData, _Parser={Parser, PState}) ->
+    {Matches, Buffer} = Parser(Response, OldData, PState),
     ToTuple = fun
                   ([E,E2|_]) -> {E, E2};
-                  ([E|_]) -> {E, ""}
+                  ([E|_]) -> {E, <<"">>}
               end,
-    lists:map(ToTuple, Matches).
+    {lists:map(ToTuple, Matches), Buffer}.
 
 translate(Data, TranslateMap, DataState) when is_list(Data) ->
     string:join(lists:map(fun(X) -> translate(X, TranslateMap, DataState) end, Data), "");
 translate(_Data={LeftRaw, RightRaw}, TranslateMap, DataState) ->
-    Left = normalize(LeftRaw),
-    Right = normalize(RightRaw),
+    Left = LeftRaw,
+    Right = RightRaw,
     case maps:find(Left, TranslateMap) of
         {ok, Translator} when is_function(Translator, 3)->
             Translator(Left, Right, DataState);
@@ -209,22 +192,12 @@ translate(_Data={LeftRaw, RightRaw}, TranslateMap, DataState) ->
         {ok, Translator} ->
             Translator;
         error ->
-            error_logger:error_msg("No translation for pattern ~p:Val ~p ~n", [Left, Right]),
+            error_logger:error_msg("No translation for pattern ~p:Val ~p In ~p~n", [Left, Right, TranslateMap]),
             ""
     end.
 
-normalize(Binary) when is_binary(Binary) ->
-    binary_to_list(Binary);
-normalize(Atom) when is_atom(Atom) ->
-    atom_to_list(Atom);
-normalize(String) ->
-    String.
-
 send_command(Command, {tcp_serial, Ip, Port}) ->
     serial_tcp_bridge:send_command({Ip, Port}, Command).
-
-%send_command_sync(Command, {tcp_serial, Ip, Port}, CleanResponseAction) ->
-%    CleanResponseAction(serial_tcp_bridge:sync_serial_command({Ip, Port}, Command)).
 
 translate_command(Listener, Device, Command) ->
     gen_server:cast(Device, {translate, Listener, Command}).

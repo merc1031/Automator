@@ -29,7 +29,7 @@ init([]) ->
 connect(Ip, Port) ->
     {ok, Socket} = case inet_parse:address(Ip) of
         {ok, ErlangIp} ->
-            gen_tcp:connect(ErlangIp, Port, [list, {active, true}]);
+            gen_tcp:connect(ErlangIp, Port, [binary, {active, true}]);
         {error, Reason} -> %% Todo .. this could be bad
             throw({error, Reason})
     end,

@@ -5,6 +5,8 @@ rel/automator_*
 
 *.eunit/
 
+.automator_plt
+
 erl_crash.dump
 *~
 *.swp
