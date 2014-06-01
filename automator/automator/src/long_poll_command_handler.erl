@@ -22,7 +22,7 @@ init({_Transport, http}, Req, _Opts) ->
 info({response, Translated}, Req, State) ->
     ReqF = receive
         {response, MoreData} ->
-            {ok, Req2} = cowboy_req:reply(200, [{<<"content-type">>, <<"text/plain">>}], format_return(lists:concat(Translated, MoreData)), Req),
+            {ok, Req2} = cowboy_req:reply(200, [{<<"content-type">>, <<"text/plain">>}], format_return(lists:concat([Translated, MoreData])), Req),
             Req2
     after 500 ->
             {ok, Req2} = cowboy_req:reply(200, [{<<"content-type">>, <<"text/plain">>}], format_return(Translated), Req),

@@ -108,7 +108,7 @@ handle_info({response, Response}, State=#device_state{
                                            old_data=OldData
                                            }) ->
     error_logger:error_msg("Device ~p got a response ~p", [State#device_state.name, Response]),
-    {ParsedResponses, Buffer} = parse_response(lists:flatten(CleanResponseAction(Response)), OldData, Parser),
+    {ParsedResponses, Buffer} = parse_response(CleanResponseAction(Response), OldData, Parser),
     State2 = State#device_state{old_data=Buffer},
     Translated = translate(ParsedResponses, ResponseMap, DataState),
 
