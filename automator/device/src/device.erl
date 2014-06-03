@@ -105,7 +105,6 @@ handle_info({response, Response}, State=#device_state{
                                            clean_response_action=CleanResponseAction,
                                            response_map=ResponseMap,
                                            data_state=DataState,
-                                           waiting=Waiting,
                                            response_parser=Parser,
                                            old_data=OldData
                                            }) ->
@@ -114,9 +113,7 @@ handle_info({response, Response}, State=#device_state{
     State2 = State#device_state{old_data=Buffer},
     Translated = translate(ParsedResponses, ResponseMap, DataState),
 
-    lists:foreach(fun({Listener, _}) ->
-                          error_logger:error_msg("Replying to ~p", [Listener]),
-                          Listener ! {response, Translated} end, Waiting),
+    reply(ParsedResponses, Translated, State2),
 
     NewState = apply_data_state(ParsedResponses, State2),
     {noreply, NewState};
@@ -131,7 +128,25 @@ terminate(_Reason, _State) ->
         ok.
 
 code_change(_OldVsn, State, _Extra) ->
-        {ok, State}.
+    {ok, State}.
+
+populate_reply(ParsedResponses, ResponseMap, DataState) ->
+    Keys = lists:map(fun({L,_}) -> L end, ParsedResponses),
+    error_logger:error_msg("DataState in replying ~p", [DataState]),
+    Unnaccounted = maps:without(Keys, DataState),
+    error_logger:error_msg("Unaccoundted in replying ~p", [Unnaccounted]),
+    lists:flatten(maps:fold(fun(K,V,Acc) -> [Acc, translate({K,V}, ResponseMap, DataState)] end, [], Unnaccounted)).
+
+reply(ParsedResponses, Translated, #device_state{
+                           waiting=Waiting,
+                           data_state=DataState,
+                           response_map=ResponseMap
+                          }) ->
+    AdditionalTranslated = populate_reply(ParsedResponses, ResponseMap, DataState),
+    FinalTranslated = lists:flatten([Translated, AdditionalTranslated]),
+    lists:foreach(fun({Listener, _}) ->
+                          error_logger:error_msg("Replying to ~p with ~p", [Listener, FinalTranslated]),
+                          Listener ! {response, FinalTranslated} end, Waiting).
 
 refresh_data_state(State=#device_state{command_map=CommandMap,
                                         target=Target,
