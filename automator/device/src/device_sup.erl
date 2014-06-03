@@ -70,7 +70,7 @@ init([]) ->
     }},
     ResponseMap = {response_map, #{
         <<"VOL">> => fun(_Cmd, Val) -> io_lib:format("vol~p~n", [(binary_to_integer(Val) / 2) - 80.5]) end,
-        <<"PWR">> => fun(_Cmd, Val) -> io_lib:format("power~s~n", [case Val of "1" -> "Off"; "0" -> "On" end]) end,
+        <<"PWR">> => fun(_Cmd, Val) -> io_lib:format("power~s~n", [case Val of <<"1">> -> "Off"; <<"0">> -> "On" end]) end,
         <<"FN">> => fun(_Cmd, Val) -> io_lib:format("input~s~n", [receiver_inputs(Val)]) end
     }},
 
