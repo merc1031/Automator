@@ -36,6 +36,7 @@ init([]) ->
         <<"power">> => "?P\r",
         <<"input">> => "?F\r",
         <<"inc_vol_db">> => fun(_Cmd,Val, DataState=#{}) ->
+                                error_logger:error_msg("DataState is ~p", [DataState]),
                                 with_cached_value(<<"VOL">>, DataState, fun(OldVol) ->
                                         OldVolDb = (binary_to_integer(OldVol) / 2) - 80.5, %%Convert to Db
                                         NewVolDb = OldVolDb + binary_to_integer(Val), %%Add Db increment

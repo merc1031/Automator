@@ -83,6 +83,7 @@ handle_cast({translate, Listener, Command}, State=#device_state{target=Target,
                                                              data_state=DataState
                                                              }) ->
         State2 = State#device_state{waiting=lists:append([{Listener, link(Listener)}], Waiting)},
+        error_logger:error_msg("Cast got command from ~p ~p", [Listener, Command]),
         case translate(Command, CommandMap, DataState) of
             {multi, Series} ->
                 lists:reverse(lists:foreach(fun({sleep, Time}=_Action) ->
@@ -92,6 +93,7 @@ handle_cast({translate, Listener, Command}, State=#device_state{target=Target,
                             end, Series));
 
             TranslatedCommand ->
+                error_logger:error_msg("Command is translated to ~p", [TranslatedCommand]),
                 send_command(TranslatedCommand, Target)
         end,
         {noreply, State2};
@@ -166,6 +168,7 @@ refresh_data_state(State=#device_state{command_map=CommandMap,
 apply_data_state([], State=#device_state{}) ->
     State;
 apply_data_state(_TranslatedResponses=[{Resp, Val}|Rest], State=#device_state{data_state=DataState}) ->
+    error_logger:error_msg("Time to apply data state", []),
     NewDataState = case maps:find(Resp, DataState) of 
         error ->
             DataState;
