@@ -46,6 +46,7 @@ init([PropList]) ->
         InitialDataState = proplists:get_value(initial_data_state, PropList, #{}),
         CleanResponse = proplists:get_value(clean_response_action, PropList, fun(X) -> X end),
         {ok, TimerRef} = timer:send_interval(10000, refresh_data_state),
+        DataState = maps:fold(fun(_,[_, {res, V}], Acc) -> maps:put(V, "", Acc) end, #{}, InitialDataState),
         State = #device_state{
                    name = Name,
                    command_map = CommandMap,
@@ -55,7 +56,8 @@ init([PropList]) ->
                    listeners = Listeners,
                    clean_response_action = CleanResponse,
                    data_state_refresher = InitialDataState,
-                   data_state_timer = TimerRef
+                   data_state_timer = TimerRef,
+                   data_state = DataState
                   },
         gen_server:cast(self(), {register, Target}),
         {ok, State}.
