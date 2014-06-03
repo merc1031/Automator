@@ -61,7 +61,7 @@ init([]) ->
                         fun(Response, OldData, Parser) ->
                             {Working, Buffer} = line_protocol_helper(Response, OldData, <<"\r\n">>),
                             error_logger:error_msg("We hav eparsed some messaged ~p ~p", [Working, Buffer]),
-                            {match, Matches} = re:run(Working, Parser, [global, {capture, all_but_first, binary}]),
+                            Matches = run_regex(Working, Parser),
                             error_logger:error_msg("We have matches! ~p", [Matches]),
                             {Matches, Buffer}
                         end,
@@ -127,4 +127,11 @@ with_cached_value(Key, DataState, Operation) ->
             ""
     end.
 
+
+-spec run_regex(binary(), re:mp()) -> list(list(binary())).
+run_regex(<<>>,_) ->
+    [[<<>>]];
+run_regex(Working, Parser) ->
+    {match, Matches} = re:run(Working, Parser, [global, {capture, all_but_first, binary}]),
+    Matches.
 
