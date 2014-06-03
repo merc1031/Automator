@@ -123,11 +123,11 @@ handle_info(_Packet={'EXIT', Pid, _Reason}, State=#device_state{waiting=Waiting}
     error_logger:error_msg("A waiting listener died ~p", [Pid]),
     {noreply, State#device_state{waiting=lists:filter(fun({ListPid, _ListLinkResult}) -> Pid =/= ListPid end, Waiting)}};
 handle_info(_Info, State) ->
-        {noreply, State}.
+    {noreply, State}.
 
 
 terminate(_Reason, _State) ->
-        ok.
+    ok.
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
