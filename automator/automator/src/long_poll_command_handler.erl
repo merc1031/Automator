@@ -6,8 +6,7 @@
 -export([terminate/3]).
 
 -record(http_state, {
-         grace_period = false :: true | false,
-         buffer = "" :: list()
+         grace_timeout :: non_neg_integer()
 }).
 
 init({_Transport, http}, Req, _Opts) ->
@@ -17,14 +16,14 @@ init({_Transport, http}, Req, _Opts) ->
     {Val, Req4} = cowboy_req:binding(val, Req3, ""),
     error_logger:error_msg("Request incoming from ~p ~p", [self(), {Device, Cmd, Val}]),
     device:translate_command(self(), Device, {Cmd, Val}),
-    {loop, Req4, #http_state{}, 20000, hibernate}.
+    {loop, Req4, #http_state{grace_timeout=250}, 20000, hibernate}.
 
 info({response, Translated}, Req, State) ->
     ReqF = receive
         {response, MoreData} ->
             {ok, Req2} = cowboy_req:reply(200, [{<<"content-type">>, <<"text/plain">>}], format_return(lists:concat([Translated, MoreData])), Req),
             Req2
-    after 500 ->
+    after State#http_state.grace_timeout ->
             {ok, Req2} = cowboy_req:reply(200, [{<<"content-type">>, <<"text/plain">>}], format_return(Translated), Req),
             Req2
     end,
