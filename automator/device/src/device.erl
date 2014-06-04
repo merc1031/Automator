@@ -46,7 +46,7 @@ init([PropList]) ->
         InitialDataState = proplists:get_value(initial_data_state, PropList, #{}),
         CleanResponse = proplists:get_value(clean_response_action, PropList, fun(X) -> X end),
         {ok, TimerRef} = timer:send_interval(10000, refresh_data_state),
-        DataState = maps:fold(fun(_,[_, {res, V}], Acc) -> maps:put(V, "", Acc) end, #{}, InitialDataState),
+        DataState = maps:fold(fun(_,[_, {res, V}], Acc) -> maps:put(V, <<"">>, Acc) end, #{}, InitialDataState),
         State = #device_state{
                    name = Name,
                    command_map = CommandMap,
@@ -86,11 +86,11 @@ handle_cast({translate, Listener, Command}, State=#device_state{target=Target,
         error_logger:error_msg("Cast got command from ~p ~p", [Listener, Command]),
         case translate(Command, CommandMap, DataState) of
             {multi, Series} ->
-                lists:reverse(lists:foreach(fun({sleep, Time}=_Action) ->
+                lists:foreach(fun({sleep, Time}=_Action) ->
                                     timer:sleep(Time);
                                  (Action) ->
                                     send_command(Action, Target)
-                            end, Series));
+                            end, Series);
 
             TranslatedCommand ->
                 error_logger:error_msg("Command is translated to ~p", [TranslatedCommand]),
