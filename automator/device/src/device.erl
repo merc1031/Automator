@@ -75,7 +75,7 @@ handle_call({translate, Command}, _From, State=#device_state{target=Target,
                                     [Result | Acc]
                             end, [],Series)),
 
-                {ParsedResponses, Buffer} = parse_response(lists:flatten(Results), OldData, Parser),
+                {ParsedResponses, Buffer} = parse_response(device_sup:binary_join(Results, <<"\r\n">>), OldData, Parser),
                 Translated = translate(ParsedResponses, ResponseMap, DataState),
 
                 NewState = apply_data_state(ParsedResponses, State#device_state{old_data=Buffer}),

@@ -7,7 +7,7 @@
 
 %% Supervisor callbacks
 -export([init/1]).
--export([line_protocol_helper/3]).
+-export([line_protocol_helper/3,binary_join/2]).
 
 %% Helper macro for declaring children of supervisor
 -define(CHILD(Name, I, Type, Params), {Name, {I, start_link, [Params]}, permanent, 5000, Type, [I]}).
@@ -69,7 +69,7 @@ init([]) ->
     }},
     ResponseMap = {response_map, #{
         <<"VOL">> => fun(_Cmd, Val) -> io_lib:format("vol~p~n", [(binary_to_integer(Val) / 2) - 80.5]) end,
-        <<"PWR">> => fun(_Cmd, Val) -> io_lib:format("power~s~n", [case Val of "1" -> "Off"; "0" -> "On" end]) end,
+        <<"PWR">> => fun(_Cmd, Val) -> io_lib:format("power~s~n", [case Val of <<"1">> -> "Off"; <<"0">> -> "On" end]) end,
         <<"FN">> => fun(_Cmd, Val) -> io_lib:format("input~s~n", [receiver_inputs(Val)]) end
     }},
 
@@ -127,4 +127,16 @@ with_cached_value(Key, DataState, Operation) ->
             ""
     end.
 
+-spec binary_join([binary()], binary()) -> binary().
+binary_join([], _Sep) ->
+    <<>>;
+binary_join([Part], _Sep) ->
+    Part;
+binary_join(List, Sep) ->
+    lists:foldr(fun (A, B) ->
+                        if
+                            bit_size(B) > 0 -> <<A/binary, Sep/binary, B/binary>>;
+                            true -> A
+                        end
+                end, <<>>, List).
 

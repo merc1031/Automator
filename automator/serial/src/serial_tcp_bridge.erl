@@ -43,19 +43,19 @@ send_command_to_device(Target, Command, State=#serial_tcp_bridge_state{device_ma
                             error_logger:warning_msg("Got Packet ~p for Command ~p ~n", [Packet, Command]),
                             {Packet, State};
                         {error, timeout} ->
-                            {"", State};
+                            {<<"">>, State};
                         {error, _Reason} ->
                             gen_tcp:close(Tcp),
                             {Ip, Port} = Target,
                             TcpSerial = connect(Ip, Port),
                             State2 = State#serial_tcp_bridge_state{device_map=maps:put({Ip, Port}, TcpSerial, DeviceMap)},
-                            {"", State2}
+                            {<<"">>, State2}
                     end;
                 {error, _Reason} ->
                     {Ip, Port} = Target,
                     TcpSerial = connect(Ip, Port),
                     State2 = State#serial_tcp_bridge_state{device_map=maps:put({Ip, Port}, TcpSerial, DeviceMap)},
-                    {"", State2}
+                    {<<"">>, State2}
             end;
         error ->
             {Ip, Port} = Target,
