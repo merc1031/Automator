@@ -7,7 +7,7 @@
 
 %% Supervisor callbacks
 -export([init/1]).
--export([line_protocol_helper/3]).
+-export([line_protocol_helper/3,binary_join/2]).
 
 %% Helper macro for declaring children of supervisor
 -define(CHILD(Name, I, Type, Params), {Name, {I, start_link, [Params]}, permanent, 5000, Type, [I]}).
@@ -128,6 +128,18 @@ with_cached_value(Key, DataState, Operation) ->
             ""
     end.
 
+-spec binary_join([binary()], binary()) -> binary().
+binary_join([], _Sep) ->
+    <<>>;
+binary_join([Part], _Sep) ->
+    Part;
+binary_join(List, Sep) ->
+    lists:foldr(fun (A, B) ->
+                        if
+                            bit_size(B) > 0 -> <<A/binary, Sep/binary, B/binary>>;
+                            true -> A
+                        end
+                end, <<>>, List).
 
 -spec run_regex(binary(), re:mp()) -> list(list(binary())).
 run_regex(<<>>,_) ->
