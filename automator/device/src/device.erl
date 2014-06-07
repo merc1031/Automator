@@ -12,6 +12,7 @@
          code_change/3]).
 
 -export([translate_command/3]).
+-export([query_timeout/2]).
 
 -record(device_state, {
           name :: atom,
@@ -62,6 +63,19 @@ init([PropList]) ->
         gen_server:cast(self(), {register, Target}),
         {ok, State}.
 
+handle_call({query_timeout, CmdName}, _From, State=#device_state{command_map=CommandMap}) ->
+    Reply = case maps:find(CmdName, CommandMap) of
+        {multi, Series} ->
+            lists:foldl(fun({sleep, Time}=_, Acc) ->
+                                Acc + Time;
+                                (_, Acc) ->
+                                Acc + 250
+                        end, Series);
+
+        _ ->
+            250
+    end,
+    {reply, Reply, State};
 handle_call(_Request, _From, State) ->
         Reply = ok,
         {reply, Reply, State}.
@@ -221,6 +235,9 @@ send_command(Command, {tcp_serial, Ip, Port}) ->
 
 translate_command(Listener, Device, Command) ->
     gen_server:cast(Device, {translate, Listener, Command}).
+
+query_timeout(Device, CmdName) ->
+    gen_server:call(Device, {query_timeout, CmdName}).
 
 -include_lib("eunit/include/eunit.hrl").
 
