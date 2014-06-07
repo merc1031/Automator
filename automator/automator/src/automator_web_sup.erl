@@ -12,10 +12,7 @@ init([]) ->
     error_logger:info_msg("~p:init()~n", [?MODULE]),
     Dispatch = cowboy_router:compile([
                         {'_', [
-%%                            {"/serial/receiver/vol",receiver_volume_handler, []},
-                            {"/test/receiver/vol/[:cmd/:vol]", [{vol, int}, {cmd, function, fun _Atomize(Val) -> {true, binary_to_atom(Val, latin1)} end}], receiver_volume_handler, []},
-                            {"/test2/:device/[:cmd/[:val]]", [{device, function, fun _Atomize(Val) -> {true, binary_to_atom(Val, latin1)} end}], long_poll_command_handler, []},
-                            {"/serial/:device/[:cmd/[:val]]", [{device, function, fun _Atomize(Val) -> {true, binary_to_atom(Val, latin1)} end}], command_dispatch_handler, []}
+                            {"/serial/:device/[:cmd/[:val]]", [{device, function, fun _Atomize(Val) -> {true, binary_to_atom(Val, latin1)} end}], long_poll_command_handler, []}
                         ]}
                 ]),
     Port = application:get_env(automator, http_frontend_port, 9374),
