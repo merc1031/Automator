@@ -26,5 +26,8 @@ init([]) ->
     SerialTCPBridge = {serial_tcp_bridge,
                            {serial_tcp_bridge, start_link, []},
                            permanent, 5000, worker, [serial_tcp_bridge]},
-    {ok, { {one_for_one, 5, 10}, [SerialTCPBridge]} }.
+    UdpBridge = {udp_bridge,
+                           {udp_bridge, start_link, []},
+                           permanent, 5000, worker, [udp_bridge]},
+    {ok, { {one_for_one, 5, 10}, [SerialTCPBridge, UdpBridge]} }.
 
