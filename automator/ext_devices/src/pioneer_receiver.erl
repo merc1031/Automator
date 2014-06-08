@@ -62,7 +62,7 @@ get_specification() ->
         "vol" => [{cmd, <<"vol">>}, {res, <<"VOL">>}],
         "input" => [{cmd, <<"input">>}, {res, <<"FN">>}]
     }},
-    Target = {target, {tcp_serial, "192.168.1.124", 4999}},
+    Target = {target, {serial_tcp_bridge, register_device, ["192.168.1.124", 4999]}},
     CleanResponse = {clean_response_action,
                      fun(Resp) ->
                              %% If we clean the string of non newline, carraige return and printing characters, and its empty ...

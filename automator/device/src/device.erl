@@ -19,7 +19,7 @@
           command_map = maps:new() :: map(),
           response_map = maps:new() :: map(),
           response_parser :: re:re(),
-          target :: module(),
+          target :: mfa(),
           listeners = [] :: list(),
           data_state = maps:new() :: map(),
           clean_response_action :: fun((list()) -> list()),
@@ -83,10 +83,10 @@ handle_call(_Request, _From, State) ->
 handle_cast({register, undefined, _}, State) ->
         error_logger:warning_msg("Tried to register undefined target"),
         {noreply, State};
-handle_cast({register, {tcp_serial, Ip, Port}}, State=#device_state{name=Name}) ->
-        serial_tcp_bridge:register_device(Name, Ip, Port),
-        gen_server:cast(self(), init),
-        {noreply, State};
+handle_cast({register, {Module, Function, Args}}, State=#device_state{name=Name}) ->
+    erlang:apply(Module, Function, [Name | Args]),
+    gen_server:cast(self(), init),
+    {noreply, State};
 handle_cast(init, State=#device_state{}) ->
     NewState = refresh_data_state(State),
     error_logger:error_msg("Initial state set to ~p~n", [NewState]),
