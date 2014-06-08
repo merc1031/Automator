@@ -2,7 +2,7 @@
 
 -export([get_specification/0]).
 
--export([packet_helo/3, packet_action/2]).
+-export([packet_helo/3, packet_action/2, packet_notification/4, packet_ping/0]).
 
 -record(xbmc_packet, {
           sig = <<"XBMC">> :: binary(),
@@ -52,7 +52,8 @@
 get_specification() ->
     Name = {name, xbmc_event_client},
     CommandMap = {command_map, #{
-                    <<"right">> => packet_send_str(packet_button(#{code => <<"S">>, queue => 1}))
+                    <<"right">> => {multi, packet_send_str(packet_button(#{map_name => <<"KB">>, button_name => <<"right">>}))},
+                    <<"notify">> => fun(_Cmd, Val) -> {multi, packet_send_str(packet_notification(Val, Val, ?ICON_NONE, undefined))} end
     }},
 
     ResponseParser = {response_parser, {
@@ -63,11 +64,25 @@ get_specification() ->
 
     InitialDataState = {initial_data_state, #{
     }},
-    Target = {target, {udp_bridge, register_device, ["192.168.1.125", 9997, [packet_send_str(packet_helo("automator", ?ICON_NONE, undefined))]]}},
-    CleanResponse = {clean_response_action,
-                     undefined
-    },
-    Params = [Name, CommandMap, ResponseParser, ResponseMap, Target, InitialDataState, CleanResponse],
+    Target = {target, {
+                udp_bridge,
+                register_device,
+                [
+                 "192.168.1.125",
+                 9997,
+                 [
+                  #{
+                   init => packet_send_str(packet_helo("automator", ?ICON_NONE, undefined)),
+                   keepalive => {20, packet_send_str(packet_ping())}
+                  }
+                 ]
+                ]
+               }
+             },
+%    CleanResponse = {clean_response_action,
+%                     undefined
+%    },
+    Params = [Name, CommandMap, ResponseParser, ResponseMap, Target, InitialDataState],
     Params.
 
 
@@ -207,6 +222,25 @@ packet_button(Code, Repeat, Down, Queue, MapName, ButtonName, Amount, Axis) ->
     P5 = packet_append_payload(format_string(MapName), P4),
     packet_append_payload(format_string(ButtonName), P5).
 
+packet_notification(Title, Message, IconType, IconFile) ->
+    P = packet_base(),
+    PacketType = ?PT_NOTIFICATION,
+    P2 = packet_set_payload(format_string(Title), P#xbmc_packet{packettype=PacketType}),
+    P3 = packet_append_payload(format_string(Message), P2),
+    P4 = packet_append_payload(chr(IconType), P3),
+    P5 = packet_append_payload(format_uint32(0), P4),
+    case {IconType, IconFile} of
+        {?ICON_NONE, _} ->
+            P5;
+        {_, undefined} ->
+            P5;
+        {_, IconFileI } ->
+            packet_append_payload(file(IconFileI), P5)
+    end.
+
+packet_ping() ->
+    P = packet_base(),
+    P#xbmc_packet{packettype=?PT_PING}.
 
 %%Packet functions
 packet_get_header(1, #xbmc_packet{packettype=PacketType}=P) ->
