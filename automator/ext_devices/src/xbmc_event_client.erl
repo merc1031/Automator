@@ -180,7 +180,7 @@ packet_button(Code, Repeat, Down, Queue, MapName, ButtonName, Amount, Axis) ->
     PacketType = ?PT_BUTTON,
     Flags = 0,
 
-    CodeU = ord(Code),
+    CodeU = case Code of Code when is_list(Code) -> ord(Code); _ -> Code end,
     {NewCode, NewFlags} = case {MapName, ButtonName} of
         {<<"">>, <<"">>} ->
             {CodeU, Flags};
@@ -336,5 +336,17 @@ proper_helo_packet_test() ->
 
     ExpectedHeader = Header,
     Data = packet_get_udp_message(1, MungedHELOPacket),
+    Expected = Data.
+
+proper_button_packet_test() ->
+    Expected = <<"XBMC\x02\x00\x00\x03\x00\x00\x00\x01\x00\x00\x00\x01\x00\x0fS\x94\xfcM\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0b\x00\x00KB\x00right\x00">>,
+    ExpectedHeader = <<"XBMC\x02\x00\x00\x03\x00\x00\x00\x01\x00\x00\x00\x01\x00\x0fS\x94\xfcM\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00">>,
+    ButtonPacket = packet_button(#{ map_name => <<"KB">>, button_name => <<"right">>}),
+    MungedButtonPacket = ButtonPacket#xbmc_packet{uid=1402272845},
+
+    Header = packet_get_header(1, MungedButtonPacket),
+
+    ExpectedHeader = Header,
+    Data = packet_get_udp_message(1, MungedButtonPacket),
     Expected = Data.
 -endif.
