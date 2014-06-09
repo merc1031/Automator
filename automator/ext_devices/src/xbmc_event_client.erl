@@ -120,7 +120,7 @@ file(File) ->
 chr(Uint) when Uint =< 0; Uint < 256 ->
     <<Uint:8>>.
 
-ord(<<A>>=O) when is_binary(O) ->
+ord(<<A:1/binary,_/binary>>=O) when is_binary(O) ->
     A;
 ord([A]=O) when is_list(O) ->
     A.
