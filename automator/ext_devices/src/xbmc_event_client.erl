@@ -3,6 +3,11 @@
 -export([get_specification/0]).
 
 -export([packet_helo/3, packet_action/2, packet_notification/4, packet_ping/0]).
+-export([packet_get_header/2, packet_get_payload/2, packet_get_udp_message/2, packet_get_payload_size/2]).
+
+-define(NOW, now()).
+
+-define(UNIQUE_IDENTIFICATION, element(1, ?NOW) * 1000000 + element(2, ?NOW)).
 
 -record(xbmc_packet, {
           sig = <<"XBMC">> :: binary(),
@@ -11,8 +16,8 @@
           seq = 1 :: non_neg_integer(),
           maxseq = 1 :: non_neg_integer(),
           payloadsize = 0 :: non_neg_integer(),
-          uid :: time:timestamp(),
-          reserved = <<0000000000>> :: binary(),
+          uid = ?UNIQUE_IDENTIFICATION :: time:timestamp(),
+          reserved = << <<"\0">> || _ <- lists:seq(0,9) >> :: binary(),
           payload = <<"">> :: binary(),
           packettype = <<"">> :: binary(),
           icontype = <<"">> :: binary()
@@ -20,7 +25,7 @@
 
 -define(MAX_PACKET_SIZE, 1024).
 -define(MAX_HEADER_SIZE, 32).
--define(MAX_PAYLOAD_SIZE, ?MAX_PACKET_SIZE - ?MAX_HEADER_SIZE).
+-define(MAX_PAYLOAD_SIZE, (?MAX_PACKET_SIZE - ?MAX_HEADER_SIZE)).
 
 -define(ICON_NONE, 16#00).
 
@@ -48,6 +53,7 @@
 -define(BT_VKEY, 40).
 -define(BT_AXIS, 80).
 -define(BT_AXISSINGLE,  100).
+
 
 get_specification() ->
     Name = {name, xbmc_event_client},
@@ -124,7 +130,8 @@ packet_base() ->
 packet_helo(Name, IconType, IconFile) ->
     P = packet_base(),
     PacketType = ?PT_HELO,
-    P2 = packet_set_payload(binary:part(format_string(Name), 0, 128), P#xbmc_packet{packettype=PacketType, icontype=IconType}),
+    FormattedName = format_string(Name),
+    P2 = packet_set_payload(binary:part(FormattedName, 0, min(byte_size(FormattedName), 128)), P#xbmc_packet{packettype=PacketType, icontype=IconType}),
     P3 = packet_append_payload(chr(IconType), P2),
     P4 = packet_append_payload(format_uint16(0), P3),
     P5 = packet_append_payload(format_uint32(0), P4),
@@ -264,15 +271,15 @@ packet_get_header(HeaderType, PacketNum, #xbmc_packet{
     PayloadSizeBin = format_uint16(packet_get_payload_size(PacketNum, P)),
     UidBin = format_uint32(Uid),
     <<
-    Sig,
-    MajVerBin,
-    MinVerBin,
-    HeaderBin,
-    PacketNumBin,
-    MaxSeqBin,
-    PayloadSizeBin,
-    UidBin,
-    Reserved
+    Sig/binary,
+    MajVerBin/binary,
+    MinVerBin/binary,
+    HeaderBin/binary,
+    PacketNumBin/binary,
+    MaxSeqBin/binary,
+    PayloadSizeBin/binary,
+    UidBin/binary,
+    Reserved/binary
     >>.
 
 packet_get_payload(PacketNum, #xbmc_packet{payload=Payload}=P) ->
@@ -284,10 +291,10 @@ packet_num_packets(#xbmc_packet{maxseq=MaxSeq}) ->
     MaxSeq.
 
 packet_append_payload(Payload, #xbmc_packet{payload=PacketPayload}=P) ->
-    packet_set_payload(PacketPayload ++ Payload, P).
+    packet_set_payload(<<PacketPayload/binary,Payload/binary>>, P).
 
 packet_set_payload(Payload, #xbmc_packet{}=P) ->
-    PayloadSize = length(Payload),
+    PayloadSize = byte_size(Payload),
     MaxSeq = trunc((PayloadSize + (?MAX_PAYLOAD_SIZE - 1)) / ?MAX_PAYLOAD_SIZE),
     P#xbmc_packet{maxseq=MaxSeq, payloadsize=PayloadSize, payload=Payload}.
 
@@ -302,7 +309,7 @@ packet_get_udp_message(Index, #xbmc_packet{}=P) ->
     Header = packet_get_header(Index, P),
 
     Payload = packet_get_payload(Index, P),
-    <<Header, Payload>>.
+    <<Header/binary, Payload/binary>>.
 
 %packet_send(#xbmc_packet{}=P, Sender) ->
 %    lists:foreach(fun(Ind) ->
@@ -319,5 +326,15 @@ packet_send_str(#xbmc_packet{}=P) ->
 
 -ifdef(TEST).
 
+proper_helo_packet_test() ->
+    Expected = <<"XBMC\x02\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x01\x00\x15S\x94\xfcM\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00Automator\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00">>,
+    ExpectedHeader = <<"XBMC\x02\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x01\x00\x15S\x94\xfcM\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00">>,
+    HELOPacket = packet_helo(<<"Automator">>, 16#00, undefined),
+    MungedHELOPacket = HELOPacket#xbmc_packet{uid=1402272845},
 
+    Header = packet_get_header(1, MungedHELOPacket),
+
+    ExpectedHeader = Header,
+    Data = packet_get_udp_message(1, MungedHELOPacket),
+    Expected = Data.
 -endif.
