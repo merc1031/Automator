@@ -134,17 +134,18 @@ packet_helo(Name, IconType, IconFile) ->
     PacketType = ?PT_HELO,
     FormattedName = format_string(Name),
     P2 = packet_set_payload(binary:part(FormattedName, 0, min(byte_size(FormattedName), 128)), P#xbmc_packet{packettype=PacketType, icontype=IconType}),
-    P3 = packet_append_payload(chr(IconType), P2),
-    P4 = packet_append_payload(format_uint16(0), P3),
-    P5 = packet_append_payload(format_uint32(0), P4),
-    P6 = packet_append_payload(format_uint32(0), P5),
+    P3 = lists:foldl(fun(X, Acc) -> packet_append_payload(X, Acc) end, P2, [chr(IconType), format_uint16(0), format_uint32(0), format_uint32(0)]),
+%    P3 = packet_append_payload(chr(IconType), P2),
+%    P4 = packet_append_payload(format_uint16(0), P3),
+%    P5 = packet_append_payload(format_uint32(0), P4),
+%    P6 = packet_append_payload(format_uint32(0), P5),
     case {IconType, IconFile} of
         {?ICON_NONE, _} ->
-            P6;
+            P3;
         {_, undefined} ->
-            P6;
+            P3;
         {_, IconFileI } ->
-            packet_append_payload(file(IconFileI), P6)
+            packet_append_payload(file(IconFileI), P3)
     end.
 
 packet_action(Message, Action) ->
@@ -226,25 +227,27 @@ packet_button(Code, Repeat, Down, Queue, MapName, ButtonName, Amount, Axis) ->
             NewFlags5 bor ?BT_AXIS
     end,
     P2 = packet_set_payload(format_uint16(NewCode), P#xbmc_packet{packettype=PacketType}),
-    P3 = packet_append_payload(format_uint16(NewFlags6), P2),
-    P4 = packet_append_payload(format_uint16(NewAmount), P3),
-    P5 = packet_append_payload(format_string(MapName), P4),
-    packet_append_payload(format_string(ButtonName), P5).
+    lists:foldl(fun(X, Acc) -> packet_append_payload(X, Acc) end, P2, [format_uint16(NewFlags6), format_uint16(NewAmount), format_string(MapName), format_string(ButtonName)]).
+%    P3 = packet_append_payload(format_uint16(NewFlags6), P2),
+%    P4 = packet_append_payload(format_uint16(NewAmount), P3),
+%    P5 = packet_append_payload(format_string(MapName), P4),
+%    packet_append_payload(format_string(ButtonName), P5).
 
 packet_notification(Title, Message, IconType, IconFile) ->
     P = packet_base(),
     PacketType = ?PT_NOTIFICATION,
     P2 = packet_set_payload(format_string(Title), P#xbmc_packet{packettype=PacketType}),
-    P3 = packet_append_payload(format_string(Message), P2),
-    P4 = packet_append_payload(chr(IconType), P3),
-    P5 = packet_append_payload(format_uint32(0), P4),
+    P3 = lists:foldl(fun(X, Acc) -> packet_append_payload(X, Acc) end, P2, [format_string(Message), chr(IconType), format_uint32(0)]),
+%    P3 = packet_append_payload(format_string(Message), P2),
+%    P4 = packet_append_payload(chr(IconType), P3),
+%    P5 = packet_append_payload(format_uint32(0), P4),
     case {IconType, IconFile} of
         {?ICON_NONE, _} ->
-            P5;
+            P3;
         {_, undefined} ->
-            P5;
+            P3;
         {_, IconFileI } ->
-            packet_append_payload(file(IconFileI), P5)
+            packet_append_payload(file(IconFileI), P3)
     end.
 
 packet_ping() ->
@@ -273,15 +276,15 @@ packet_get_header(HeaderType, PacketNum, #xbmc_packet{
     PayloadSizeBin = format_uint16(packet_get_payload_size(PacketNum, P)),
     UidBin = format_uint32(Uid),
     <<
-    Sig/binary,
-    MajVerBin/binary,
-    MinVerBin/binary,
-    HeaderBin/binary,
-    PacketNumBin/binary,
-    MaxSeqBin/binary,
-    PayloadSizeBin/binary,
-    UidBin/binary,
-    Reserved/binary
+    Sig:4/binary,
+    MajVerBin:1/binary,
+    MinVerBin:1/binary,
+    HeaderBin:2/binary,
+    PacketNumBin:4/binary,
+    MaxSeqBin:4/binary,
+    PayloadSizeBin:2/binary,
+    UidBin:4/binary,
+    Reserved:10/binary
     >>.
 
 packet_get_payload(PacketNum, #xbmc_packet{payload=Payload}=P) ->
@@ -311,7 +314,7 @@ packet_get_udp_message(Index, #xbmc_packet{}=P) ->
     Header = packet_get_header(Index, P),
 
     Payload = packet_get_payload(Index, P),
-    <<Header/binary, Payload/binary>>.
+    <<Header:32/binary, Payload/binary>>.
 
 %packet_send(#xbmc_packet{}=P, Sender) ->
 %    lists:foreach(fun(Ind) ->
