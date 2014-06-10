@@ -20,6 +20,7 @@
           response_map = maps:new() :: map(),
           response_parser :: re:re(),
           target :: mfa(),
+          target_locator :: map(),
           listeners = [] :: list(),
           data_state = maps:new() :: map(),
           clean_response_action :: fun((list()) -> list()),
@@ -84,14 +85,20 @@ handle_cast({register, undefined, _}, State) ->
         error_logger:warning_msg("Tried to register undefined target"),
         {noreply, State};
 handle_cast({register, {Module, Function, Args}}, State=#device_state{name=Name}) ->
-    erlang:apply(Module, Function, [Name | Args]),
+    erlang:apply(Module, Function, [self() | [Name | Args]]),
+    State2 = receive
+        {registered, TargetName} ->
+            State#device_state{target_locator = #{module=>Module, name=>TargetName}}
+    after 2000 ->
+            throw({"Failed to register target"})
+    end,
     gen_server:cast(self(), init),
-    {noreply, State};
+    {noreply, State2};
 handle_cast(init, State=#device_state{}) ->
     NewState = refresh_data_state(State),
     error_logger:error_msg("Initial state set to ~p~n", [NewState]),
     {noreply, NewState};
-handle_cast({translate, Listener, Command}, State=#device_state{target=Target,
+handle_cast({translate, Listener, Command}, State=#device_state{target_locator=Target,
                                                              command_map=CommandMap,
                                                              waiting=Waiting,
                                                              data_state=DataState
@@ -165,7 +172,7 @@ reply(ParsedResponses, Translated, #device_state{
                           Listener ! {response, FinalTranslated} end, Waiting).
 
 refresh_data_state(State=#device_state{command_map=CommandMap,
-                                        target=Target,
+                                        target_locator=Target,
                                         data_state_refresher=DataStateRefresher
                                         }) ->
     maps:map(fun(_Key, InitState) ->
@@ -230,8 +237,8 @@ translate(_Data={LeftRaw, RightRaw}, TranslateMap, DataState) ->
             ""
     end.
 
-send_command(Command, {tcp_serial, Ip, Port}) ->
-    serial_tcp_bridge:send_command({Ip, Port}, Command).
+send_command(Command, #{module:=Module, target:=Target}) ->
+    Module:send_command(Target, Command).
 
 translate_command(Listener, Device, Command) ->
     gen_server:cast(Device, {translate, Listener, Command}).

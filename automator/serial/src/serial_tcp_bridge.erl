@@ -10,13 +10,14 @@
          terminate/2,
          code_change/3]).
 
--export([register_device/3]).
+-export([register_device/4]).
 -export([send_command/2]).
 
 -record(serial_tcp_bridge_state, {
           device_map = maps:new() :: map(),
           module_map = maps:new() :: map(),
-          ip_socket_map = maps:new() :: map()
+          ip_socket_map = maps:new() :: map(),
+          name_to_data_map = maps:new() :: map()
 }).
 
 start_link() ->
@@ -27,13 +28,13 @@ init([]) ->
     {ok, #serial_tcp_bridge_state{}}.
 
 connect(Ip, Port) ->
-    {ok, Socket} = case inet_parse:address(Ip) of
+    {{ok, Socket}, EIp} = case inet_parse:address(Ip) of
         {ok, ErlangIp} ->
-            gen_tcp:connect(ErlangIp, Port, [binary, {active, true}]);
+            {gen_tcp:connect(ErlangIp, Port, [binary, {active, true}]), ErlangIp};
         {error, Reason} -> %% Todo .. this could be bad
             throw({error, Reason})
     end,
-    Socket.
+    {Socket, EIp}.
 
 send_command_to_device(Target, Command, State=#serial_tcp_bridge_state{device_map=DeviceMap}) ->
     case maps:find(Target, DeviceMap) of % Todo Map key should be name Not ip ? Name It?
@@ -43,36 +44,36 @@ send_command_to_device(Target, Command, State=#serial_tcp_bridge_state{device_ma
                     State;
                 {error, _Reason} ->
                     {Ip, Port} = Target,
-                    TcpSerial = connect(Ip, Port),
+                    {TcpSerial, _EIp} = connect(Ip, Port),
                     State2 = State#serial_tcp_bridge_state{device_map=maps:put({Ip, Port}, TcpSerial, DeviceMap)},
                     State2
             end;
         error ->
-            {Ip, Port} = Target,
-            TcpSerial = connect(Ip, Port),
-            State2 = State#serial_tcp_bridge_state{device_map=maps:put({Ip, Port}, TcpSerial, DeviceMap)},
-            send_command_to_device(Target, Command, State2)
+            throw({?MODULE, io_lib:format("Could not find Target ~p for Command ~p", [Target, Command])})
     end.
 
 handle_call(_Request, _From, State) ->
         Reply = ok,
         {reply, Reply, State}.
 
-handle_cast({register_device, DeviceModule, Ip, Port}, State=#serial_tcp_bridge_state{
+handle_cast({register_device, _From, DeviceModule, Ip, Port}, State=#serial_tcp_bridge_state{
                                                                 device_map=DeviceMap,
                                                                 module_map=ModuleMap,
-                                                                ip_socket_map=IpSocketMap
+                                                                ip_socket_map=IpSocketMap,
+                                                                name_to_data_map=NameToDataMap
                                                                }) ->
     State2 = case maps:find({Ip, Port}, DeviceMap) of
         {ok, _Val} ->
             State;
         error ->
-            TcpSerial = connect(Ip, Port),
-
+            {TcpSerial, EIp} = connect(Ip, Port),
+           
+            Uid = list_to_atom(tuple_to_list(EIp) ++ integer_to_list(Port)),
             State#serial_tcp_bridge_state{
               device_map=maps:put({Ip, Port}, TcpSerial, DeviceMap),
               module_map=maps:put({Ip, Port}, DeviceModule, ModuleMap),
-              ip_socket_map=maps:put(TcpSerial, {Ip, Port}, IpSocketMap)
+              ip_socket_map=maps:put(TcpSerial, {Ip, Port}, IpSocketMap),
+              name_to_data_map=maps:put(Uid, #{socket=>TcpSerial, ip_s=>Ip, port=>Port, ip=>EIp}, NameToDataMap)
             }
     end,
     {noreply, State2};
@@ -101,8 +102,8 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
         {ok, State}.
 
-register_device(DeviceModule, Ip, Port) ->
-    gen_server:cast(?MODULE, {register_device, DeviceModule, Ip, Port}).
+register_device(From, DeviceModule, Ip, Port) ->
+    gen_server:cast(?MODULE, {register_device, From, DeviceModule, Ip, Port}).
 
 send_command(Target, Command) -> 
     error_logger:error_msg("Getting a command casted ~p ~p", [Target, Command]),

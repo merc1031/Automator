@@ -10,7 +10,7 @@
          terminate/2,
          code_change/3]).
 
--export([register_device/4]).
+-export([register_device/5]).
 -export([send_command/2]).
 
 -record(udp_bridge_state, {
@@ -55,7 +55,7 @@ handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
 
-handle_cast({register_device, DeviceModule, Ip, Port, Opts=#{init:=InitPackets, keepalive:=KeepAliveConfig}}, State=#udp_bridge_state{
+handle_cast({register_device, _From, DeviceModule, Ip, Port, Opts=#{init:=InitPackets, keepalive:=KeepAliveConfig}}, State=#udp_bridge_state{
                                                                 device_map=DeviceMap,
                                                                 module_map=ModuleMap
                                                                }) ->
@@ -107,8 +107,8 @@ set_keepalive(KeepAliveConfig, #{ raw_ip := Ip, port := Port }) ->
     {ok, Timer} = timer:send_interval(KeepAlivePeriod, {keepalive, Ip, Port, KeepAlivePackets}),
     Timer.
 
-register_device(DeviceModule, Ip, Port, Opts=#{}) ->
-    gen_server:cast(?MODULE, {register_device, DeviceModule, Ip, Port, Opts}).
+register_device(From, DeviceModule, Ip, Port, Opts=#{}) ->
+    gen_server:cast(?MODULE, {register_device, From, DeviceModule, Ip, Port, Opts}).
 
 send_command(Target, Command) -> 
     error_logger:error_msg("Getting a command casted ~p ~p", [Target, Command]),
