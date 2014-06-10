@@ -133,12 +133,17 @@ packet_helo(Name, IconType, IconFile) ->
     P = packet_base(),
     PacketType = ?PT_HELO,
     FormattedName = format_string(Name),
+    %%Payload Layout
+    %%
+    %%string::128 Name
+    %%char IconTyp
+    %%uint16 reserved
+    %%uint32 reserved
+    %%uint32 reserved
+    %%file? IconFile
+    %%
     P2 = packet_set_payload(binary:part(FormattedName, 0, min(byte_size(FormattedName), 128)), P#xbmc_packet{packettype=PacketType, icontype=IconType}),
     P3 = lists:foldl(fun(X, Acc) -> packet_append_payload(X, Acc) end, P2, [chr(IconType), format_uint16(0), format_uint32(0), format_uint32(0)]),
-%    P3 = packet_append_payload(chr(IconType), P2),
-%    P4 = packet_append_payload(format_uint16(0), P3),
-%    P5 = packet_append_payload(format_uint32(0), P4),
-%    P6 = packet_append_payload(format_uint32(0), P5),
     case {IconType, IconFile} of
         {?ICON_NONE, _} ->
             P3;
@@ -151,6 +156,11 @@ packet_helo(Name, IconType, IconFile) ->
 packet_action(Message, Action) ->
     P = packet_base(),
     PacketType = ?PT_ACTION,
+    %%Payload Layout
+    %%
+    %%char Action
+    %%string Message
+    %%
     P2 = packet_append_payload(chr(Action), P#xbmc_packet{packettype=PacketType}),
     packet_append_payload(format_string(Message), P2).
 
@@ -226,21 +236,31 @@ packet_button(Code, Repeat, Down, Queue, MapName, ButtonName, Amount, Axis) ->
         2 ->
             NewFlags5 bor ?BT_AXIS
     end,
+
+    %%Payload Layout
+    %%
+    %%uint16 Code
+    %%uint16 Flags
+    %%uint16 Amount
+    %%string MapName
+    %%string ButtonName
+    %%
     P2 = packet_set_payload(format_uint16(NewCode), P#xbmc_packet{packettype=PacketType}),
     lists:foldl(fun(X, Acc) -> packet_append_payload(X, Acc) end, P2, [format_uint16(NewFlags6), format_uint16(NewAmount), format_string(MapName), format_string(ButtonName)]).
-%    P3 = packet_append_payload(format_uint16(NewFlags6), P2),
-%    P4 = packet_append_payload(format_uint16(NewAmount), P3),
-%    P5 = packet_append_payload(format_string(MapName), P4),
-%    packet_append_payload(format_string(ButtonName), P5).
 
 packet_notification(Title, Message, IconType, IconFile) ->
     P = packet_base(),
     PacketType = ?PT_NOTIFICATION,
+    %%Payload Layout
+    %%
+    %%string Title
+    %%string Message
+    %%char IconType
+    %%uint32 reserved
+    %%file? IconFile
+    %%
     P2 = packet_set_payload(format_string(Title), P#xbmc_packet{packettype=PacketType}),
     P3 = lists:foldl(fun(X, Acc) -> packet_append_payload(X, Acc) end, P2, [format_string(Message), chr(IconType), format_uint32(0)]),
-%    P3 = packet_append_payload(format_string(Message), P2),
-%    P4 = packet_append_payload(chr(IconType), P3),
-%    P5 = packet_append_payload(format_uint32(0), P4),
     case {IconType, IconFile} of
         {?ICON_NONE, _} ->
             P3;
