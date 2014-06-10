@@ -85,9 +85,6 @@ get_specification() ->
                 ]
                }
              },
-%    CleanResponse = {clean_response_action,
-%                     undefined
-%    },
     Params = [Name, CommandMap, ResponseParser, ResponseMap, Target, InitialDataState],
     Params.
 
@@ -201,6 +198,7 @@ packet_button(Code, Repeat, Down, Queue, MapName, ButtonName, Amount, Axis) ->
             IFlags = Flags bor ?BT_USE_NAME,
             {0, IFlags}
     end,
+
     {NewAmount, NewFlags2} = case Amount of
         0 ->
             {Amount, NewFlags};
@@ -209,33 +207,12 @@ packet_button(Code, Repeat, Down, Queue, MapName, ButtonName, Amount, Axis) ->
             {Amount, IFlags2}
     end,
 
-    NewFlags3 = case Down of
-        0 ->
-            NewFlags2 bor ?BT_UP;
-        1 ->
-            NewFlags2 bor ?BT_DOWN
-    end,
+    Opts = [{Down, {?BT_UP, ?BT_DOWN}}, {Repeat, {?BT_NO_REPEAT, 0}}, {Queue, {0, ?BT_QUEUE}}, {Axis, {0, ?BT_AXISSINGLE, ?BT_AXIS}}],
+    Applicator = fun({Flag, Applics}, Acc) ->
+                         Acc bor element(Flag + 1, Applics)
+                 end,
 
-    NewFlags4 = case Repeat of
-        0 ->
-            NewFlags3 bor ?BT_NO_REPEAT;
-        1 ->
-            NewFlags3
-    end,
-    NewFlags5 = case Queue of
-        0 ->
-            NewFlags4;
-        1 ->
-            NewFlags4 bor ?BT_QUEUE
-    end,
-    NewFlags6 = case Axis of
-        0 ->
-            NewFlags5;
-        1 ->
-            NewFlags5 bor ?BT_AXISSINGLE;
-        2 ->
-            NewFlags5 bor ?BT_AXIS
-    end,
+    FinalFlags = lists:foldl(Applicator, NewFlags2, Opts),
 
     %%Payload Layout
     %%
@@ -246,7 +223,7 @@ packet_button(Code, Repeat, Down, Queue, MapName, ButtonName, Amount, Axis) ->
     %%string ButtonName
     %%
     P2 = packet_set_payload(format_uint16(NewCode), P#xbmc_packet{packettype=PacketType}),
-    lists:foldl(fun(X, Acc) -> packet_append_payload(X, Acc) end, P2, [format_uint16(NewFlags6), format_uint16(NewAmount), format_string(MapName), format_string(ButtonName)]).
+    lists:foldl(fun(X, Acc) -> packet_append_payload(X, Acc) end, P2, [format_uint16(FinalFlags), format_uint16(NewAmount), format_string(MapName), format_string(ButtonName)]).
 
 packet_notification(Title, Message, IconType, IconFile) ->
     P = packet_base(),
@@ -336,11 +313,6 @@ packet_get_udp_message(Index, #xbmc_packet{}=P) ->
     Payload = packet_get_payload(Index, P),
     <<Header:32/binary, Payload/binary>>.
 
-%packet_send(#xbmc_packet{}=P, Sender) ->
-%    lists:foreach(fun(Ind) ->
-%            Sender(packet_get_udp_message(Ind+1, P))
-%        end,
-%        lists:seq(0, packet_num_packets(P))).
 packet_send_str(#xbmc_packet{}=P) ->
     lists:foldl(fun(Ind, Acc) ->
             [packet_get_udp_message(Ind+1, P) | Acc]
