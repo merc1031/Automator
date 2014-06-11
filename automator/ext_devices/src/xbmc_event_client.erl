@@ -59,17 +59,13 @@
 get_specification() ->
     Name = {name, xbmc_event_client},
     CommandMap = {command_map, #{
-                    <<"right">> => {multi,
-                                    packet_send_str(packet_button(#{map_name => <<"KB">>, button_name => <<"right">>, queue => 1, repeat => 0}))
-                                   },
+                    <<"right">> => {multi, packet_send_str(packet_button(#{map_name => <<"KB">>, button_name => <<"right">>, queue => 1, repeat => 0}))},
+                    <<"left">> => {multi, packet_send_str(packet_button(#{map_name => <<"KB">>, button_name => <<"left">>, queue => 1, repeat => 0}))},
+                    <<"up">> => {multi, packet_send_str(packet_button(#{map_name => <<"KB">>, button_name => <<"up">>, queue => 1, repeat => 0}))},
+                    <<"down">> => {multi, packet_send_str(packet_button(#{map_name => <<"KB">>, button_name => <<"down">>, queue => 1, repeat => 0}))},
+                    <<"enter">> => {multi, packet_send_str(packet_button(#{map_name => <<"KB">>, button_name => <<"enter">>, queue => 1, repeat => 0}))},
                     <<"release">> => {multi, packet_send_str(packet_button(#{code => 16#01, down => 0, queue => 0}))},
                     <<"notify">> => fun(_Cmd, Val) -> {multi, packet_send_str(packet_notification(Val, Val, ?ICON_NONE, undefined))} end
-    }},
-
-    ResponseParser = {response_parser, {
-                        undefined, undefined
-    }},
-    ResponseMap = {response_map, #{
     }},
 
     InitialDataState = {initial_data_state, #{
@@ -82,12 +78,12 @@ get_specification() ->
                  9777,
                  #{
                    init => packet_send_str(packet_helo(<<"automator">>, ?ICON_NONE, undefined)),
-                   keepalive => {20, packet_send_str(packet_ping())}
+                   keepalive => {20000, packet_send_str(packet_ping())}
                   }
                 ]
                }
              },
-    Params = [Name, CommandMap, ResponseParser, ResponseMap, Target, InitialDataState],
+    Params = [Name, CommandMap, Target, InitialDataState],
     Params.
 
 should_wait(_) ->
