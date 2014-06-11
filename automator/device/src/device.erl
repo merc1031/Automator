@@ -85,7 +85,7 @@ handle_cast({register, undefined, _}, State) ->
         error_logger:warning_msg("Tried to register undefined target"),
         {noreply, State};
 handle_cast({register, {Module, Function, Args}}, State=#device_state{name=Name}) ->
-    erlang:apply(Module, Function, [self() | [Name | Args]]),
+    ok = erlang:apply(Module, Function, [self() | [Name | Args]]),
     State2 = receive
         {registered, TargetName} ->
             State#device_state{target_locator = #{module=>Module, name=>TargetName}}
@@ -237,7 +237,7 @@ translate(_Data={LeftRaw, RightRaw}, TranslateMap, DataState) ->
             ""
     end.
 
-send_command(Command, #{module:=Module, target:=Target}) ->
+send_command(Command, #{module:=Module, name:=Target}) ->
     Module:send_command(Target, Command).
 
 translate_command(Listener, Device, Command) ->

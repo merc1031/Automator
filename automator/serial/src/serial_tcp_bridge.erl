@@ -30,23 +30,24 @@ init([]) ->
 connect(Ip, Port) ->
     {{ok, Socket}, EIp} = case inet_parse:address(Ip) of
         {ok, ErlangIp} ->
+            error_logger:error_msg("Try connecting to ~p ~p", [ErlangIp, Port]),
             {gen_tcp:connect(ErlangIp, Port, [binary, {active, true}]), ErlangIp};
         {error, Reason} -> %% Todo .. this could be bad
             throw({error, Reason})
     end,
     {Socket, EIp}.
 
-send_command_to_device(Target, Command, State=#serial_tcp_bridge_state{device_map=DeviceMap}) ->
-    case maps:find(Target, DeviceMap) of % Todo Map key should be name Not ip ? Name It?
-        {ok, Tcp} ->
+send_command_to_device(Target, Command, State=#serial_tcp_bridge_state{
+                                                 name_to_data_map=NameToDataMap
+                                                }) ->
+    error_logger:error_msg("Send to ~p ~p ~p", [Target, Command, NameToDataMap]),
+    case maps:find(Target, NameToDataMap) of % Todo Map key should be name Not ip ? Name It?
+        {ok, #{socket:=Tcp}} ->
             case gen_tcp:send(Tcp, Command) of
                 ok ->
                     State;
-                {error, _Reason} ->
-                    {Ip, Port} = Target,
-                    {TcpSerial, _EIp} = connect(Ip, Port),
-                    State2 = State#serial_tcp_bridge_state{device_map=maps:put({Ip, Port}, TcpSerial, DeviceMap)},
-                    State2
+                {error, Reason} ->
+                    throw({?MODULE, io_lib:format("Could not send to Target ~p for Command ~p for reason ~p", [Target, Command, Reason])}) %% maybe instead of throw re-request register? keep track of who wanted this?
             end;
         error ->
             throw({?MODULE, io_lib:format("Could not find Target ~p for Command ~p", [Target, Command])})
@@ -56,19 +57,21 @@ handle_call(_Request, _From, State) ->
         Reply = ok,
         {reply, Reply, State}.
 
-handle_cast({register_device, _From, DeviceModule, Ip, Port}, State=#serial_tcp_bridge_state{
+handle_cast({register_device, From, DeviceModule, Ip, Port}, State=#serial_tcp_bridge_state{
                                                                 device_map=DeviceMap,
                                                                 module_map=ModuleMap,
                                                                 ip_socket_map=IpSocketMap,
                                                                 name_to_data_map=NameToDataMap
                                                                }) ->
+    error_logger:error_msg("Outer Trying to register ~p ~p ~p ~p", [From, DeviceModule, Ip, Port]),
     State2 = case maps:find({Ip, Port}, DeviceMap) of
         {ok, _Val} ->
             State;
         error ->
             {TcpSerial, EIp} = connect(Ip, Port),
-           
             Uid = list_to_atom(tuple_to_list(EIp) ++ integer_to_list(Port)),
+            error_logger:error_msg("Trying to register ~p ~p ~p ~p", [From, DeviceModule, Ip, Port]),
+            From ! {registered, Uid},
             State#serial_tcp_bridge_state{
               device_map=maps:put({Ip, Port}, TcpSerial, DeviceMap),
               module_map=maps:put({Ip, Port}, DeviceModule, ModuleMap),
