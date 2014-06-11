@@ -34,7 +34,6 @@ send_command_to_device(Target, Command, State=#udp_bridge_state{
                                                 }) ->
     case maps:find(Target, NameToDataMap) of
         {ok, #{socket := Socket, ip := Ip, port := Port}=_Opts} ->
-            error_logger:error_msg("We are sending over udp to iP ~p port ~p command ~p", [Ip, Port, Command]),
             case gen_udp:send(Socket, Ip, Port, Command) of
                 ok ->
                     State;
@@ -79,6 +78,7 @@ handle_cast(_Msg, State) ->
 handle_info({keepalive, Uid, KeepAlivePackets}, State=#udp_bridge_state{name_to_data_map=NameToDataMap}) ->
     case maps:find(Uid, NameToDataMap) of
         {ok, #{ socket := Socket, ip := EIp, port := Port }} ->
+            error_logger:info_msg("Keepalive triggered for ~p", [Uid]),
             lists:foreach(fun(Packet) -> ok = gen_udp:send(Socket, EIp, Port, Packet) end, KeepAlivePackets);
         error ->
             error_logger:error_msg("BAD", [])
