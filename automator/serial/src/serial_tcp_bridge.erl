@@ -14,9 +14,7 @@
 -export([send_command/2]).
 
 -record(serial_tcp_bridge_state, {
-          device_map = maps:new() :: map(),
           module_map = maps:new() :: map(),
-          ip_socket_map = maps:new() :: map(),
           name_to_data_map = maps:new() :: map()
 }).
 
@@ -27,20 +25,17 @@ init([]) ->
     error_logger:info_msg("~p:init()~n", [?MODULE]),
     {ok, #serial_tcp_bridge_state{}}.
 
-connect(Ip, Port) ->
-    {{ok, Socket}, EIp} = case inet_parse:address(Ip) of
-        {ok, ErlangIp} ->
-            error_logger:error_msg("Try connecting to ~p ~p", [ErlangIp, Port]),
-            {gen_tcp:connect(ErlangIp, Port, [binary, {active, true}]), ErlangIp};
+connect(ErlangIp, Port) ->
+    case gen_tcp:connect(ErlangIp, Port, [binary, {active, true}]) of
+        {ok, InnerSocket} ->
+            InnerSocket;
         {error, Reason} -> %% Todo .. this could be bad
             throw({error, Reason})
-    end,
-    {Socket, EIp}.
+    end.
 
 send_command_to_device(Target, Command, State=#serial_tcp_bridge_state{
                                                  name_to_data_map=NameToDataMap
                                                 }) ->
-    error_logger:error_msg("Send to ~p ~p ~p", [Target, Command, NameToDataMap]),
     case maps:find(Target, NameToDataMap) of % Todo Map key should be name Not ip ? Name It?
         {ok, #{socket:=Tcp}} ->
             case gen_tcp:send(Tcp, Command) of
@@ -58,25 +53,20 @@ handle_call(_Request, _From, State) ->
         {reply, Reply, State}.
 
 handle_cast({register_device, From, DeviceModule, Ip, Port}, State=#serial_tcp_bridge_state{
-                                                                device_map=DeviceMap,
                                                                 module_map=ModuleMap,
-                                                                ip_socket_map=IpSocketMap,
                                                                 name_to_data_map=NameToDataMap
                                                                }) ->
-    error_logger:error_msg("Outer Trying to register ~p ~p ~p ~p", [From, DeviceModule, Ip, Port]),
-    State2 = case maps:find({Ip, Port}, DeviceMap) of
+    {ok, ErlangIp} = inet_parse:address(Ip),
+    Uid = list_to_atom(tuple_to_list(ErlangIp) ++ integer_to_list(Port)),
+    State2 = case maps:find(Uid, NameToDataMap) of
         {ok, _Val} ->
             State;
         error ->
-            {TcpSerial, EIp} = connect(Ip, Port),
-            Uid = list_to_atom(tuple_to_list(EIp) ++ integer_to_list(Port)),
-            error_logger:error_msg("Trying to register ~p ~p ~p ~p", [From, DeviceModule, Ip, Port]),
+            Socket = connect(ErlangIp, Port),
             From ! {registered, Uid},
             State#serial_tcp_bridge_state{
-              device_map=maps:put({Ip, Port}, TcpSerial, DeviceMap),
-              module_map=maps:put({Ip, Port}, DeviceModule, ModuleMap),
-              ip_socket_map=maps:put(TcpSerial, {Ip, Port}, IpSocketMap),
-              name_to_data_map=maps:put(Uid, #{socket=>TcpSerial, ip_s=>Ip, port=>Port, ip=>EIp}, NameToDataMap)
+              module_map=maps:put(Socket, DeviceModule, ModuleMap),
+              name_to_data_map=maps:put(Uid, #{socket=>Socket, raw_ip=>Ip, port=>Port, ip=>ErlangIp}, NameToDataMap)
             }
     end,
     {noreply, State2};
@@ -87,13 +77,9 @@ handle_cast(_Msg, State) ->
         {noreply, State}.
 
 handle_info({tcp, Socket, Data}, State=#serial_tcp_bridge_state{
-                                          module_map=ModuleMap,
-                                          ip_socket_map=IpSocketMap
+                                          module_map=ModuleMap
                                          }) ->
-    error_logger:error_msg("TcpSerial got a response ~p", [Data]),
-    Id = maps:get(Socket, IpSocketMap),
-    DeviceModule = maps:get(Id, ModuleMap),
-    error_logger:error_msg("Got module ~p for ~p mapped to ~p", [DeviceModule, Socket, Id]),
+    DeviceModule = maps:get(Socket, ModuleMap),
     DeviceModule ! {response, Data},
     {noreply, State};
 handle_info(_Info, State) ->
@@ -109,6 +95,5 @@ register_device(From, DeviceModule, Ip, Port) ->
     gen_server:cast(?MODULE, {register_device, From, DeviceModule, Ip, Port}).
 
 send_command(Target, Command) -> 
-    error_logger:error_msg("Getting a command casted ~p ~p", [Target, Command]),
     gen_server:cast(?MODULE, {command, Target, Command}).
 
