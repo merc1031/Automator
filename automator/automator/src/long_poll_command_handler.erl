@@ -16,8 +16,14 @@ init({_Transport, http}, Req, _Opts) ->
     {Val, Req4} = cowboy_req:binding(val, Req3, ""),
     error_logger:error_msg("Request incoming from ~p ~p", [self(), {Device, Cmd, Val}]),
     GraceTimeout = device:query_timeout(Device, Cmd),
+    ShouldWait = device:query_should_wait(Device, Cmd),
     device:translate_command(self(), Device, {Cmd, Val}),
-    {loop, Req4, #http_state{grace_timeout=GraceTimeout}, 20000, hibernate}.
+    case ShouldWait of
+        yes ->
+            {loop, Req4, #http_state{grace_timeout=GraceTimeout}, 20000, hibernate};
+        no ->
+            {shutdown, Req4, #http_state{}}
+    end.
 
 info({response, Translated}, Req, State) ->
     ReqF = receive

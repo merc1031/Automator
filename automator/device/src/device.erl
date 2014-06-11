@@ -13,6 +13,7 @@
 
 -export([translate_command/3]).
 -export([query_timeout/2]).
+-export([query_should_wait/2]).
 
 -record(device_state, {
           name :: atom,
@@ -75,6 +76,16 @@ handle_call({query_timeout, CmdName}, _From, State=#device_state{command_map=Com
 
         _ ->
             250
+    end,
+    {reply, Reply, State};
+handle_call({query_should_wait, CmdName}, _From, State=#device_state{
+                                                          name=Name
+                                                         }) ->
+    Reply = case erlang:function_exported(Name, should_wait, 1) of
+        true ->
+            Name:should_wait(CmdName);
+        false ->
+            yes
     end,
     {reply, Reply, State};
 handle_call(_Request, _From, State) ->
@@ -245,6 +256,9 @@ translate_command(Listener, Device, Command) ->
 
 query_timeout(Device, CmdName) ->
     gen_server:call(Device, {query_timeout, CmdName}).
+
+query_should_wait(Device, CmdName) ->
+    gen_server:call(Device, {query_should_wait, CmdName}).
 
 -include_lib("eunit/include/eunit.hrl").
 

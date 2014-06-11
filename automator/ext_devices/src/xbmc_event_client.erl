@@ -1,6 +1,7 @@
 -module(xbmc_event_client).
 
 -export([get_specification/0]).
+-export([should_wait/1]).
 
 -export([packet_helo/3, packet_action/2, packet_notification/4, packet_ping/0]).
 -export([packet_get_header/2, packet_get_payload/2, packet_get_udp_message/2, packet_get_payload_size/2]).
@@ -89,6 +90,8 @@ get_specification() ->
     Params = [Name, CommandMap, ResponseParser, ResponseMap, Target, InitialDataState],
     Params.
 
+should_wait(_) ->
+    no.
 
 %%Packet utils
 
