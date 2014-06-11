@@ -14,8 +14,6 @@
 -export([send_command/2]).
 
 -record(udp_bridge_state, {
-          device_map = maps:new() :: map(),
-          module_map = maps:new() :: map(),
           name_to_data_map = maps:new() :: map()
 }).
 
@@ -34,14 +32,14 @@ connect() ->
 send_command_to_device(Target, Command, State=#udp_bridge_state{
                                                  name_to_data_map=NameToDataMap
                                                 }) ->
-    case maps:find(Target, NameToDataMap) of % Todo Map key should be name Not ip ? Name It?
+    case maps:find(Target, NameToDataMap) of
         {ok, #{socket := Socket, ip := Ip, port := Port}=_Opts} ->
             error_logger:error_msg("We are sending over udp to iP ~p port ~p command ~p", [Ip, Port, Command]),
             case gen_udp:send(Socket, Ip, Port, Command) of
                 ok ->
                     State;
                 {error, Reason} ->
-                    throw({?MODULE, io_lib:format("Could not send to Target ~p for Command ~p for reason ~p", [Target, Command, Reason])}) %% maybe instead of throw re-request register? keep track of who wanted this?
+                    throw({?MODULE, io_lib:format("Could not send to Target ~p for Command ~p for reason ~p", [Target, Command, Reason])})
             end;
         error ->
             error_logger:error_msg("This is bad.", [])
@@ -52,27 +50,23 @@ handle_call(_Request, _From, State) ->
     {reply, Reply, State}.
 
 handle_cast({register_device, From, DeviceModule, Ip, Port, Opts=#{init:=InitPackets, keepalive:=KeepAliveConfig}}, State=#udp_bridge_state{
-                                                                device_map=DeviceMap,
-                                                                module_map=ModuleMap,
                                                                 name_to_data_map=NameToDataMap
                                                                }) ->
-    State2 = case maps:find({Ip, Port}, DeviceMap) of
+    {ok, ErlangIp} = inet:parse_address(Ip),
+    Uid = list_to_atom(tuple_to_list(ErlangIp) ++ integer_to_list(Port)),
+    State2 = case maps:find(Uid, NameToDataMap) of
         {ok, _Val} ->
             State;
         error ->
             PortAndSocket = connect(),
-            {ok, ErlangIp} = inet:parse_address(Ip),
-            Uid = list_to_atom(tuple_to_list(ErlangIp) ++ integer_to_list(Port)),
 
-            NewOpts = maps:merge(PortAndSocket, #{raw_ip=> Ip, ip => ErlangIp, port => Port, uid => Uid}),
+            NewOpts = maps:merge(PortAndSocket, #{raw_ip=> Ip, ip => ErlangIp, port => Port, uid => Uid, device_module => DeviceModule}),
             IntOpts = maps:merge(Opts, NewOpts),
             handle_init(InitPackets, IntOpts),
             Timer = set_keepalive(KeepAliveConfig, IntOpts),
             From ! {registered, Uid},
             State#udp_bridge_state{
-              device_map=maps:put({Ip, Port}, PortAndSocket, DeviceMap),
-              name_to_data_map=maps:put(Uid, maps:merge(IntOpts, #{timer => Timer}), NameToDataMap),
-              module_map=maps:put({Ip, Port}, DeviceModule, ModuleMap)
+              name_to_data_map=maps:put(Uid, maps:merge(IntOpts, #{timer => Timer}), NameToDataMap)
             }
     end,
     {noreply, State2};
