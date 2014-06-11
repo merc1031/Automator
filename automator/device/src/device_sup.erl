@@ -26,5 +26,7 @@ init([]) ->
     error_logger:error_msg("~p:init()", [?MODULE]),
     Params = pioneer_receiver:get_specification(),
     Receiver = ?CHILD(pioneer_receiver, device, worker, Params),
-    {ok, { {one_for_one, 5, 10}, [Receiver]} }.
+    ParamsXbmcEvent = xbmc_event_client:get_specification(),
+    XbmcEvent = ?CHILD(xbmc_event_client, device, worker, ParamsXbmcEvent),
+    {ok, { {one_for_one, 5, 10}, [Receiver, XbmcEvent]} }.
 

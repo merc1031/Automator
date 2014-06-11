@@ -44,21 +44,24 @@
 -define(ACTION_EXECBUILTIN, = 16#01).
 -define(ACTION_BUTTON, = 16#02).
 
--define(BT_USE_NAME, 01).
--define(BT_DOWN,  02).
--define(BT_UP, 04).
--define(BT_USE_AMOUNT,  08).
--define(BT_QUEUE,   10).
--define(BT_NO_REPEAT, 20).
--define(BT_VKEY, 40).
--define(BT_AXIS, 80).
--define(BT_AXISSINGLE,  100).
+-define(BT_USE_NAME, 16#01).
+-define(BT_DOWN,  16#02).
+-define(BT_UP, 16#04).
+-define(BT_USE_AMOUNT,  16#08).
+-define(BT_QUEUE,   16#10).
+-define(BT_NO_REPEAT, 16#20).
+-define(BT_VKEY, 16#40).
+-define(BT_AXIS, 16#80).
+-define(BT_AXISSINGLE,  16#100).
 
 
 get_specification() ->
     Name = {name, xbmc_event_client},
     CommandMap = {command_map, #{
-                    <<"right">> => {multi, packet_send_str(packet_button(#{map_name => <<"KB">>, button_name => <<"right">>}))},
+                    <<"right">> => {multi,
+                                    packet_send_str(packet_button(#{map_name => <<"KB">>, button_name => <<"right">>, queue => 1, repeat => 0}))
+                                   },
+                    <<"release">> => {multi, packet_send_str(packet_button(#{code => 16#01, down => 0, queue => 0}))},
                     <<"notify">> => fun(_Cmd, Val) -> {multi, packet_send_str(packet_notification(Val, Val, ?ICON_NONE, undefined))} end
     }},
 
@@ -74,14 +77,12 @@ get_specification() ->
                 udp_bridge,
                 register_device,
                 [
-                 "192.168.1.125",
-                 9997,
-                 [
-                  #{
-                   init => packet_send_str(packet_helo("automator", ?ICON_NONE, undefined)),
+                 "192.168.1.129",
+                 9777,
+                 #{
+                   init => packet_send_str(packet_helo(<<"automator">>, ?ICON_NONE, undefined)),
                    keepalive => {20, packet_send_str(packet_ping())}
                   }
-                 ]
                 ]
                }
              },
@@ -166,7 +167,7 @@ packet_button(Args) ->
       code => 0,
       repeat => 1,
       down => 1,
-      queue => 1,
+      queue => 0,
       map_name => <<"">>,
       button_name => <<"">>,
       amount => 0,
@@ -200,8 +201,8 @@ packet_button(Code, Repeat, Down, Queue, MapName, ButtonName, Amount, Axis) ->
     end,
 
     {NewAmount, NewFlags2} = case Amount of
-        0 ->
-            {Amount, NewFlags};
+        undefined ->
+            {0, NewFlags};
         Amount ->
             IFlags2 = NewFlags bor ?BT_USE_AMOUNT,
             {Amount, IFlags2}
@@ -317,7 +318,8 @@ packet_send_str(#xbmc_packet{}=P) ->
     lists:foldl(fun(Ind, Acc) ->
             [packet_get_udp_message(Ind+1, P) | Acc]
         end,
-        lists:seq(0, packet_num_packets(P))).
+        [],
+        lists:seq(0, packet_num_packets(P) - 1)).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -344,6 +346,14 @@ proper_button_packet_test() ->
     Header = packet_get_header(1, MungedButtonPacket),
 
     ExpectedHeader = Header,
+    Data = packet_get_udp_message(1, MungedButtonPacket),
+    Expected = Data.
+
+proper_non_repeating_button_packet_test() ->
+    Expected = <<"XBMC\x02\x00\x00\x03\x00\x00\x00\x01\x00\x00\x00\x01\x00\x0fS\x94\xfcM\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00;\x00\x00KB\x00right\x00">>,
+    ButtonPacket = packet_button(#{map_name => <<"KB">>, button_name => <<"right">>, repeat => 0, queue => 1}),
+    MungedButtonPacket = ButtonPacket#xbmc_packet{uid=1402272845},
+
     Data = packet_get_udp_message(1, MungedButtonPacket),
     Expected = Data.
 -endif.
