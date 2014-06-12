@@ -58,15 +58,25 @@
 
 get_specification() ->
     Name = {name, xbmc_event_client},
-    CommandMap = {command_map, #{
-                    <<"right">> => {multi, packet_send_str(packet_button(#{map_name => <<"KB">>, button_name => <<"right">>, queue => 1, repeat => 0}))},
-                    <<"left">> => {multi, packet_send_str(packet_button(#{map_name => <<"KB">>, button_name => <<"left">>, queue => 1, repeat => 0}))},
-                    <<"up">> => {multi, packet_send_str(packet_button(#{map_name => <<"KB">>, button_name => <<"up">>, queue => 1, repeat => 0}))},
-                    <<"down">> => {multi, packet_send_str(packet_button(#{map_name => <<"KB">>, button_name => <<"down">>, queue => 1, repeat => 0}))},
-                    <<"enter">> => {multi, packet_send_str(packet_button(#{map_name => <<"KB">>, button_name => <<"enter">>, queue => 1, repeat => 0}))},
+    KBPress = fun(Key) when is_binary(Key) -> {Key, {multi, packet_send_str(packet_button(#{map_name => <<"KB">>, button_name => Key, queue => 1, repeat => 0}))}} end,
+
+    Keys = [
+            <<"right">>, <<"left">>, <<"up">>, <<"down">>, <<"enter">>, <<"backspace">>, <<"zero">>, <<"one">>,
+           <<"two">>, <<"three">>, <<"four">>, <<"five">>, <<"six">>, <<"seven">>, <<"eight">>, <<"nine">>,
+           <<"return">>, <<"escape">>, <<"tab">>, <<"space">>, <<"insert">>, <<"delete">>, <<"home">>,
+           <<"end">>, <<"numpadzero">>, <<"numpadone">>, <<"numpadtwo">>, <<"numpadthree">>, <<"numpadfour">>,
+           <<"numpadfive">>, <<"numpadsix">>, <<"numpadseven">>, <<"numpadeight">>, <<"numpadnine">>,
+           <<"numpadtimes">>, <<"numpadplus">>, <<"numpadminus">>, <<"numpadperiod">>, <<"numpaddivide">>,
+           <<"pageup">>, <<"pagedown">>, <<"menu">>, <<"pause">>, <<"play_pause">>, <<"stop">>, <<"equals">>,
+           <<"minus">>, <<"next_track">>, <<"prev_track">>, <<"f1">>, <<"f2">>, <<"f3">>, <<"f4">>, <<"f5">>,
+           <<"f6">>, <<"f7">>, <<"f8">>, <<"f9">>, <<"f10">>, <<"f11">>, <<"f12">>
+    ],
+    KBKeys = maps:from_list(lists:map(KBPress, Keys)),
+
+    CommandMap = {command_map, maps:merge(KBKeys, #{
                     <<"release">> => {multi, packet_send_str(packet_button(#{code => 16#01, down => 0, queue => 0}))},
                     <<"notify">> => fun(_Cmd, Val) -> {multi, packet_send_str(packet_notification(Val, Val, ?ICON_NONE, undefined))} end
-    }},
+    })},
 
     InitialDataState = {initial_data_state, #{
     }},
