@@ -333,6 +333,23 @@ packet_send_str(#xbmc_packet{}=P) ->
 -include_lib("eunit/include/eunit.hrl").
 
 -ifdef(TEST).
+deep_header_test() ->
+    ExpectedHeader = <<"XBMC\x02\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x01\x00\x15S\x94\xfcM\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00">>,
+    HELOPacket = packet_helo(<<"Automator">>, 16#00, undefined),
+    MungedHELOPacket = HELOPacket#xbmc_packet{uid=1402272845},
+
+    Header = packet_get_header(1, MungedHELOPacket),
+
+    ExpectedHeader = Header,
+    <<Sig:4/binary, MajVer:8/integer, MinVer:8/integer, PacketType:16/integer, Seq:32/integer, MaxSeq:32/integer, PayloadSize:16/integer, Uid:32/integer, _/binary >> = Header,
+    <<"XBMC">> = Sig,
+    2 = MajVer,
+    0 = MinVer,
+    ?PT_HELO = PacketType,
+    1 = Seq,
+    1 = MaxSeq,
+    21 = PayloadSize,
+    1402272845 = Uid.
 
 proper_helo_packet_test() ->
     Expected = <<"XBMC\x02\x00\x00\x01\x00\x00\x00\x01\x00\x00\x00\x01\x00\x15S\x94\xfcM\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00Automator\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00">>,
