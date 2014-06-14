@@ -17,6 +17,7 @@ init({_Transport, http}, Req, _Opts) ->
     error_logger:error_msg("Request incoming from ~p ~p", [self(), {Device, Cmd, Val}]),
     GraceTimeout = device:query_timeout(Device, Cmd),
     ShouldWait = device:query_should_wait(Device, Cmd),
+    error_logger:error_msg("We have queried the following for device ~p : Wait ~p Timout ~p", [Device, ShouldWait, GraceTimeout]),
     device:translate_command(self(), Device, {Cmd, Val}),
     case ShouldWait of
         yes ->

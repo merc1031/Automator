@@ -67,15 +67,18 @@ init([PropList]) ->
 
 handle_call({query_timeout, CmdName}, _From, State=#device_state{command_map=CommandMap}) ->
     Reply = case maps:find(CmdName, CommandMap) of
-        {multi, Series} ->
-            lists:foldl(fun({sleep, Time}=_, Acc) ->
-                                Acc + Time;
-                                (_, Acc) ->
-                                Acc + 250
-                        end, Series);
+                {ok, {multi, Series}} ->
+                    lists:foldl(
+                      fun({sleep, Time}=_, Acc) ->
+                              Acc + Time;
+                         (_, Acc) ->
+                              Acc + 250
+                      end, 0, Series);
 
-        _ ->
-            250
+                {ok, _} ->
+                    250;
+                _ ->
+                    0
     end,
     {reply, Reply, State};
 handle_call({query_should_wait, CmdName}, _From, State=#device_state{
@@ -119,8 +122,10 @@ handle_cast({translate, Listener, Command}, State=#device_state{target_locator=T
         case translate(Command, CommandMap, DataState) of
             {multi, Series} ->
                 lists:foreach(fun({sleep, Time}=_Action) ->
+                                    error_logger:error_msg("Command is translated to sleep ~p", [Time]),
                                     timer:sleep(Time);
                                  (Action) ->
+                                    error_logger:error_msg("Command is translated to ~p", [Action]),
                                     send_command(Action, Target)
                             end, Series);
 
