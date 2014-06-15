@@ -58,7 +58,7 @@
 
 get_specification() ->
     Name = {name, xbmc_event_client},
-    KBPress = fun(Key) when is_binary(Key) -> {Key, {multi, packet_send_str(packet_button(#{map_name => <<"KB">>, button_name => Key, queue => 1, repeat => 0}))}} end,
+    KBPress = fun(Key) when is_binary(Key) -> {Key, {multi, send_str_with_helo(packet_button(#{map_name => <<"KB">>, button_name => Key, queue => 1, repeat => 0}))}} end,
 
     Keys = [
             <<"right">>, <<"left">>, <<"up">>, <<"down">>, <<"enter">>, <<"backspace">>, <<"zero">>, <<"one">>,
@@ -74,8 +74,9 @@ get_specification() ->
     KBKeys = maps:from_list(lists:map(KBPress, Keys)),
 
     CommandMap = {command_map, maps:merge(KBKeys, #{
-                    <<"release">> => {multi, packet_send_str(packet_button(#{code => 16#01, down => 0, queue => 0}))},
-                    <<"notify">> => fun(_Cmd, Val) -> {multi, packet_send_str(packet_notification(Val, Val, ?ICON_NONE, undefined))} end
+                    <<"release">> => {multi, send_str_with_helo(packet_button(#{code => 16#01, down => 0, queue => 0}))},
+                    <<"notify">> => fun(_Cmd, Val) -> {multi, send_str_with_helo(packet_notification(Val, Val, ?ICON_NONE, undefined))} end,
+                   <<"helo">> => {multi, packet_send_str(packet_helo(<<"automator">>, ?ICON_NONE, undefined))}
     })},
 
     InitialDataState = {initial_data_state, #{
@@ -100,6 +101,8 @@ should_wait(_) ->
     no.
 
 %%Packet utils
+send_str_with_helo(P) ->
+    packet_compose_and_send_str(packet_helo(<<"automator">>, ?ICON_NONE, undefined), P).
 
 format_string(String) when is_binary(String) ->
     <<String/binary, <<"\x00">>/binary >>;
@@ -329,6 +332,11 @@ packet_send_str(#xbmc_packet{}=P) ->
         end,
         [],
         lists:seq(0, packet_num_packets(P) - 1)).
+
+packet_compose_and_send_str(P, P2) ->
+    L1 = packet_send_str(P),
+    L2 = packet_send_str(P2),
+    lists:flatten([L1, L2]).
 
 -include_lib("eunit/include/eunit.hrl").
 
