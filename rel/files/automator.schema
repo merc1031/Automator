@@ -1,0 +1,5 @@
+{mapping, "sasl", "sasl.sasl_error_logger", [
+    {default, off},
+    {datatype, flag},
+    hidden
+]}.

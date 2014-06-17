@@ -2,6 +2,7 @@ deps
 
 rel/automator
 rel/automator_*
+package
 
 *.eunit/
 

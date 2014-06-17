@@ -1,74 +1,57 @@
-DIRS_TOPS := deps automator
+REPO		?= automator
+PKG_REVISION		?= $(shell git describe --tags)
+PKG_VERSION		?= $(shell git describe --tags | tr - .)
+PKG_ID			= automator-$(PKG_VERSION)
+PKG_BUILD		= 1
+BASE_DIR		= $(shell pwd)
+ERLANG_BIN		= $(shell dirname $(shell which erl))
+REBAR			?= $(BASE_DIR)/bin/rebar
+OVERLAY_VARS		?=
 
-DIRS_APPS := $(filter-out %.txt %.config, $(foreach top, $(DIRS_TOPS), $(wildcard $(top)/*)))
-REBAR := ./bin/rebar
-REL := ./rel/automator
+.PHONY: rel deps all compile
 
-SRCS_APPS := $(foreach app, $(DIRS_APPS), $(wildcard $(app)/src/*.app))
-BINS_APPS :=  $(subst /src/,/ebin/, $(SRCS_APPS))
+all: compile
 
-AUTOMATOR_PLT := .automator_plt
+compile: deps
+	@(./bin/rebar compile)
 
-test:	get_deps check_env tab-test all
+deps:
+	@./bin/rebar get-deps
 
-test-all:	check_env tab-test all
+clean:
+	@./bin/rebar clean
 
-rebuild:	check_env clean all
+distclean:
+	@./bin/rebar delete-deps
+	@rm -rf $(PKG_ID).tar.gz
 
-get_deps:
-	$(REBAR) get-deps
+rel: deps compile
+	@./bin/rebar generate skip_deps=true $(OVERLAY_VARS)
 
-#Note: the grep character is a tab literal
-tab-test:
-	@echo "Checking for tab characters..."
-	@if grep -nr '	' automator --include=\*.erl; then echo "ERROR: !!! TABS FOUND !!!"; false; else true; fi
+relclean:
+	rm -rf rel/automator
 
-all: check_env generate \
-		$(addsuffix /gen, $(DIRS_APPS))
+.PHONY: package
+export PKG_VERSION PKG_ID PKG_BUILD BASE_DIR ERLANG_BIN REBAR OVERLAY_VARS RELEASE
 
-compile: check_env
-	$(REBAR) compile
+package.src: deps
+	mkdir -p package
+	rm -rf package/$(PKG_ID)
+	git archive --format=tar --prefix=$(PKG_ID)/ $(PKG_REVISION)| (cd package && tar -xf -)
+	${MAKE} -C package/$(PKG_ID) deps
+	for dep in package/$(PKG_ID)/deps/*; do \
+		echo "Processing dep: $${dep}"; \
+		mkdir -p $${dep}/priv; \
+		git --git-dir=$${dep}/.git describe --tags >$${dep}/priv/vsn.git; \
+	done
+	find package/$(PKG_ID) -depth -name ".git" -exec rm -rf {} \;
+	tar -C package -czf package/$(PKG_ID).tar.gz $(PKG_ID)
 
-clean:	check_env
-	$(REBAR) clean
-	rm -rf ${REL}
-	rm -rf rel/automator_*
-	rm -f */*/gen/* erl_crash.dump logs/*
+dist: package.src
+	cp package/$(PKG_ID).tar.gz .
 
-clean-gen-beam:	check_env
-	$(REBAR) clean
-	rm -f */*/gen/* erl_crash.dump logs/*
+package: package.src
+	${MAKE} -C package -f $(PKG_ID)/deps/node_package/Makefile
 
-clean-release: check_env
-	@rm -rf ${REL}
-
-generate: check_env clean-release compile
-	$(REBAR) generate
-
-%/gen: check_env
-	mkdir -p $@
-
-production-compile: check_env
-	$(REBAR) -DNOTEST compile
-
-build-plt: check_env
-	@echo 'You may as well go get a coffee.....'
-	@dialyzer --build_plt --output_plt ${AUTOMATOR_PLT} --apps erts kernel stdlib sasl crypto ssl inets tools xmerl runtime_tools compiler syntax_tools hipe mnesia
-
-check-plt: check_env
-	@dialyzer --check_plt --plt ${AUTOMATOR_PLT}
-
-dialyzer: check_env check-plt clean production-compile
-	@find . -name ebin | grep -v ${REL} | xargs dialyzer -Wno_undefined_callbacks --plt ${AUTOMATOR_PLT} -r
-
-define apps_rule
-$(subst /src/,/ebin/, $(1)):   check_env $(1)
-	@echo "Installing $(1)"
-	@cp $(1) $$@
-endef
-
-$(foreach app, $(SRCS_APPS), $(eval $(call apps_rule, $(app))))
-
-check_env:
-	@test "${ERL_LIBS}" != "" || (echo 'Erlang development environment not set. Try this:' && echo './environment.source make [target]' && exit 1)
-
+pkgclean: distclean
+	rm -rf package

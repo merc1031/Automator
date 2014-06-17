@@ -1,0 +1,6 @@
+{mapping,
+    "tcp.port",
+    "automator.tcp_frontend_port", [
+    {datatype, integer},
+    {default, 9375}
+    ]}.
