@@ -15,3 +15,5 @@
 
 ## Tweak GC to run more often
 ##-env ERL_FULLSWEEP_AFTER 10
+-name fucker@127.0.0.1
+-setcookie fuck

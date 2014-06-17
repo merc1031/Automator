@@ -16,7 +16,8 @@ init([]) ->
                             {"/udp/:device/[:cmd/[:val]]", [{device, function, fun _Atomize(Val) -> {true, binary_to_atom(Val, latin1)} end}], long_poll_command_handler, []}
                         ]}
                 ]),
-    Port = application:get_env(automator, http_frontend_port, 9374),
+    {ok, Port} = application:get_env(automator, http_frontend_port),
+    error_logger:error_msg("Ranch Port set to ~p", [Port]),
     WebListener = ranch:child_spec(automator_web_listener, 5, ranch_tcp, [{port, Port}, {max_connections, 100}], cowboy_protocol, [{env, [{dispatch, Dispatch}]}]),
 
     {ok, {{one_for_all, 10, 10}, [WebListener]}}.

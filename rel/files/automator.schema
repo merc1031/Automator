@@ -1,5 +1,23 @@
-{mapping, "sasl", "sasl.sasl_error_logger", [
-    {default, off},
-    {datatype, flag},
-    hidden
+{mapping, "distributed_cookie", "vm_args.-setcookie", [
+    {default, "itis"}
 ]}.
+
+{mapping, "nodename", "vm_args.-name", [
+    {default, "automator-cuttlefish@127.0.0.1"}
+]}.
+
+{mapping, "sasl_boot", "vm_args.-boot", [
+    {default, start_sasl},
+    {datatype, atom}
+]}.
+
+{mapping, "error_logger.file", "vm_args.-kernel error_logger", [
+    {default, "{{platform_log_dir}}/automator.log"},
+    {datatype, file}
+]}.
+
+{translation, "vm_args.-kernel error_logger",
+    fun(Conf) ->
+        {file, filename:absname(cuttlefish:conf_get("error_logger.file", Conf))}
+    end
+}.

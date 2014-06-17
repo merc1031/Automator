@@ -1,12 +1,12 @@
 {mapping,
-    "tcp.port",
+    "automator.tcp.port",
     "automator.tcp_frontend_port", [
     {datatype, integer},
     {default, 9575}
     ]}.
 
 {mapping,
-    "http.port",
+    "automator.http.port",
     "automator.http_frontend_port", [
     {datatype, integer},
     {default, 9574}
