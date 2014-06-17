@@ -21,6 +21,15 @@ deps:
 clean:
 	@./bin/rebar clean
 
+lock: deps compile
+	@./bin/rebar lock-deps
+
+locked-all: locked-deps compile
+
+locked-deps:
+	@echo "Using rebar.config.lock file to fetch deps"
+	@./bin/rebar -C rebar.config.lock get-deps
+
 distclean:
 	@./bin/rebar delete-deps
 	@rm -rf $(PKG_ID).tar.gz
