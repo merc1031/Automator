@@ -7,6 +7,7 @@ BASE_DIR		= $(shell pwd)
 ERLANG_BIN		= $(shell dirname $(shell which erl))
 REBAR			?= $(BASE_DIR)/bin/rebar
 OVERLAY_VARS		?=
+SANDBOX_CONFIG		?=
 
 .PHONY: rel deps all compile
 
@@ -39,6 +40,18 @@ rel: deps compile
 
 relclean:
 	rm -rf rel/automator
+
+sandbox: sandboxclean rel
+	@rel/automator/bin/automator stop || :
+	@mkdir -p sandbox/automator
+	@cp -r rel/automator sandbox/.
+	@cp $(SANDBOX_CONFIG) sandbox/automator/etc/automator.conf
+	@./sandbox/automator/bin/automator stop || :
+	@./sandbox/automator/bin/automator start
+
+sandboxclean:
+	@./sandbox/automator/bin/automator stop || :
+	@rm -rf sandbox/automator
 
 .PHONY: package
 export PKG_VERSION PKG_ID PKG_BUILD BASE_DIR ERLANG_BIN REBAR OVERLAY_VARS RELEASE

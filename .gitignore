@@ -3,6 +3,7 @@ deps
 rel/automator
 rel/automator_*
 package
+sandbox
 
 *.eunit/
 
