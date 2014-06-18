@@ -1,16 +1,16 @@
-{mapping, "device.$name.type", "ext_devices.device", [
+{mapping, "device.$name.type", "ext_devices.devices", [
                                                       {default, echo },
                                                       {include_default, "default"},
                                                       {datatype, atom }
                                                      ]}.
 
-{mapping, "device.$name.target.ip", "ext_devices.device", [
+{mapping, "device.$name.target.ip", "ext_devices.devices", [
                                                            {default, {"127.0.0.1", 9999} },
                                                            {include_default, "default"},
                                                            {datatype, ip}
                                                           ]}.
 
-{mapping, "device.$name.target.type", "ext_devices.device", [
+{mapping, "device.$name.target.type", "ext_devices.devices", [
                                                              {default, udp_bridge },
                                                              {include_default, "default"},
                                                              {datatype, atom}
@@ -19,7 +19,7 @@
 %{ translation, "ext_devices.device", fun(_Conf) -> ok end}.
 {
  translation,
- "ext_devices.device",
+ "ext_devices.devices",
  fun(Conf) ->
          TypesList = lists:filter(
                        fun({K, _V}) ->
@@ -37,13 +37,17 @@
                             end,
                             Conf),
 
-         Targets = [ {K, #{ target => #{ ip => Ip, type => Type } } } ||
-                     {[_, K, _, _], Type} <- TargetTypeList,
-                     {[_, K, _, _], Ip} <- TargetIpList],
+         Devices = lists:zipwith3(
+                    fun(
+                      {[_, K, _], DeviceType},
+                      {[_, K, _, _], Ip},
+                      {[_, K, _, _], Type}) ->
+                            { K, #{ device_type => DeviceType, target => #{ ip => Ip, type => Type } } }
+                    end,
+                    TypesList,
+                    TargetIpList,
+                    TargetTypeList),
 
-         Types = [ {K, #{ device_type => Type } } || {[_, K, _], Type} <- TypesList],
-
-         Devices = [ {K, maps:merge(Target, Type)} || {K, Type} <- Types, {K, Target} <- Targets],
          case Devices of
              [] ->
                  throw(unset);

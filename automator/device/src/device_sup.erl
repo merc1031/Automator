@@ -24,9 +24,15 @@ start_link() ->
 
 init([]) ->
     error_logger:error_msg("~p:init()", [?MODULE]),
-    Params = pioneer_receiver:get_specification(),
-    Receiver = ?CHILD(pioneer_receiver, device, worker, Params),
-    ParamsXbmcEvent = xbmc_event_client:get_specification(),
-    XbmcEvent = ?CHILD(xbmc_event_client, device, worker, ParamsXbmcEvent),
-    {ok, { {one_for_one, 5, 10}, [Receiver, XbmcEvent]} }.
+
+    {ok, Devices} = application:get_env(ext_devices, devices),
+
+    error_logger:error_msg("Devices ~p", [Devices]),
+    Children = lists:map(
+     fun({DeviceName, DeviceConf}) ->
+             #{ target := _, device_type := Type } = DeviceConf,
+             ?CHILD(DeviceName, device, worker, Type:get_specification(DeviceConf))
+     end, Devices),
+
+    {ok, { {one_for_one, 5, 10}, Children} }.
 

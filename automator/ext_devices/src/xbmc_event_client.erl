@@ -1,6 +1,6 @@
 -module(xbmc_event_client).
 
--export([get_specification/0]).
+-export([get_specification/1]).
 -export([should_wait/1]).
 
 -export([packet_helo/3, packet_action/2, packet_notification/4, packet_ping/0]).
@@ -56,7 +56,7 @@
 -define(BT_AXISSINGLE,  16#100).
 
 
-get_specification() ->
+get_specification(Conf) ->
     Name = {name, xbmc_event_client},
     KBPress = fun(Key) when is_binary(Key) -> {Key, {multi, send_str_with_helo(packet_button(#{map_name => <<"KB">>, button_name => Key, queue => 1, repeat => 0}))}} end,
 
@@ -81,12 +81,15 @@ get_specification() ->
 
     InitialDataState = {initial_data_state, #{
     }},
+
+    #{ target := #{ ip := {Ip, Port}, type := Type } } = Conf,
+
     Target = {target, {
-                udp_bridge,
+                Type,
                 register_device,
                 [
-                 "192.168.1.129",
-                 9777,
+                 Ip,
+                 Port,
                  #{
                    init => packet_send_str(packet_helo(<<"automator">>, ?ICON_NONE, undefined)),
                    keepalive => {20000, packet_send_str(packet_ping())}

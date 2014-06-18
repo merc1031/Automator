@@ -1,8 +1,8 @@
 -module(pioneer_receiver).
 
--export([get_specification/0]).
+-export([get_specification/1]).
 
-get_specification() ->
+get_specification(Conf) ->
     Name = {name, pioneer_receiver},
     CommandMap = {command_map, #{
         <<"set_vol">> => fun(_Cmd, Val) -> io_lib:format("~3..0BVL\r", [binary_to_integer(Val)]) end,
@@ -62,7 +62,10 @@ get_specification() ->
         "vol" => [{cmd, <<"vol">>}, {res, <<"VOL">>}],
         "input" => [{cmd, <<"input">>}, {res, <<"FN">>}]
     }},
-    Target = {target, {serial_tcp_bridge, register_device, ["192.168.1.124", 4999]}},
+
+    #{ target := #{ ip := {Ip, Port}, type := Type } } = Conf,
+
+    Target = {target, {Type, register_device, [Ip, Port]}},
     CleanResponse = {clean_response_action,
                      fun(Resp) ->
                              %% If we clean the string of non newline, carraige return and printing characters, and its empty ...
@@ -93,10 +96,13 @@ receiver_inputs(Val) ->
 -include_lib("eunit/include/eunit.hrl").
 
 -ifdef(TEST).
+dummy_conf() ->
+    #{ device_type => ?MODULE, target => #{ ip => {"1.2.3.4", 1}, type => atom }}.
+
 can_parse_no_value_response_test() ->
     Response = <<"R\r\n">>,
 
-    Spec = get_specification(),
+    Spec = get_specification(dummy_conf()),
     {Parser, ParserState} = proplists:get_value(response_parser, Spec),
     {Matches, <<>>} = Parser(Response, <<>>, ParserState),
     [[<<"R">>, <<>>]] = Matches.
@@ -104,7 +110,7 @@ can_parse_no_value_response_test() ->
 can_parse_value_response_test() ->
     Response = <<"VOL113\r\n">>,
 
-    Spec = get_specification(),
+    Spec = get_specification(dummy_conf()),
     {Parser, ParserState} = proplists:get_value(response_parser, Spec),
     {Matches, <<>>} = Parser(Response, <<>>, ParserState),
     [[<<"VOL">>, <<"113">>]] = Matches.
@@ -112,7 +118,7 @@ can_parse_value_response_test() ->
 can_parse_multiple_value_response_test() ->
     Response = <<"VOL113\r\nFN19\r\nLM000\r\n">>,
 
-    Spec = get_specification(),
+    Spec = get_specification(dummy_conf()),
     {Parser, ParserState} = proplists:get_value(response_parser, Spec),
     {Matches, <<>>} = Parser(Response, <<>>, ParserState),
     [[<<"VOL">>, <<"113">>], [<<"FN">>, <<"19">>], [<<"LM">>, <<"000">>]] = Matches.
@@ -121,7 +127,7 @@ can_parse_value_response_from_old_data_with_buffer_test() ->
     Response = <<"113\r\nFN19">>,
     OldData = <<"VOL">>,
 
-    Spec = get_specification(),
+    Spec = get_specification(dummy_conf()),
     {Parser, ParserState} = proplists:get_value(response_parser, Spec),
     {Matches, <<"FN19">>} = Parser(Response, OldData, ParserState),
     [[<<"VOL">>, <<"113">>]] = Matches.
@@ -129,7 +135,7 @@ can_parse_value_response_from_old_data_with_buffer_test() ->
 can_parse_no_value_response_followed_by_normal_response_test() ->
     Response = <<"R\r\nFN19\r\n">>,
 
-    Spec = get_specification(),
+    Spec = get_specification(dummy_conf()),
     {Parser, ParserState} = proplists:get_value(response_parser, Spec),
     {Matches, <<>>} = Parser(Response, <<>>, ParserState),
     [[<<"R">>, <<>>],[<<"FN">>, <<"19">>]] = Matches.
