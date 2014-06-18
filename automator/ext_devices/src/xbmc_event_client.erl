@@ -42,8 +42,8 @@
 -define(PT_ACTION, 16#0A).
 -define(PT_DEBUG,  16#FF).
 
--define(ACTION_EXECBUILTIN, = 16#01).
--define(ACTION_BUTTON, = 16#02).
+-define(ACTION_EXECBUILTIN, 16#01).
+-define(ACTION_BUTTON, 16#02).
 
 -define(BT_USE_NAME, 16#01).
 -define(BT_DOWN,  16#02).
