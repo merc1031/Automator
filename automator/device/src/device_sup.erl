@@ -31,7 +31,7 @@ init([]) ->
     Children = lists:map(
      fun({DeviceName, DeviceConf}) ->
              #{ target := _, device_type := Type } = DeviceConf,
-             ?CHILD(DeviceName, device, worker, Type:get_specification(DeviceConf))
+             ?CHILD(DeviceName, device, worker, Type:get_specification(DeviceConf#{ device_name => DeviceName }))
      end, Devices),
 
     {ok, { {one_for_one, 5, 10}, Children} }.

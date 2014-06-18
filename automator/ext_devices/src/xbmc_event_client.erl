@@ -57,7 +57,7 @@
 
 
 get_specification(Conf) ->
-    Name = {name, xbmc_event_client},
+    Name = {name, list_to_atom(maps:get(device_name, Conf))},
     KBPress = fun(Key) when is_binary(Key) -> {Key, {multi, send_str_with_helo(packet_button(#{map_name => <<"KB">>, button_name => Key, queue => 1, repeat => 0}))}} end,
 
     Keys = [

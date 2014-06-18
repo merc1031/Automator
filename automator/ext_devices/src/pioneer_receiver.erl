@@ -3,7 +3,7 @@
 -export([get_specification/1]).
 
 get_specification(Conf) ->
-    Name = {name, pioneer_receiver},
+    Name = {name, list_to_atom(maps:get(device_name, Conf))},
     CommandMap = {command_map, #{
         <<"set_vol">> => fun(_Cmd, Val) -> io_lib:format("~3..0BVL\r", [binary_to_integer(Val)]) end,
         <<"vol">> => "?V\r",
