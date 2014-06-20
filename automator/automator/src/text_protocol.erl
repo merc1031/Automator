@@ -29,10 +29,15 @@ init(Ref, Socket, Transport, _Opts = []) ->
                           #state{socket=Socket, transport=Transport},
                           ?TIMEOUT).
 
-handle_info({tcp, Socket, Data}, State=#state{
-                                          socket=Socket, transport=Transport}) ->
+handle_info({tcp, _Socket, Data}, State=#state{}) ->
+    Datas = binary:split(Data, <<"\r\n">>, [global]),
+    lists:map(fun send_to_target/1, Datas),
+    {noreply, State, ?TIMEOUT};
+handle_info({response, Translated}, State=#state{
+                                             socket=Socket,
+                                             transport=Transport}) ->
     Transport:setopts(Socket, [{active, once}]),
-    Transport:send(Socket, send_to_target(Data)),
+    Transport:send(Socket, Translated),
     {noreply, State, ?TIMEOUT};
 handle_info({tcp_closed, _Socket}, State) ->
     {stop, normal, State};
@@ -55,9 +60,14 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
-send_to_target(B= <<"VOL", N/binary>>) when is_binary(B) ->
-    [binary:part(N, {0, byte_size(N)-2})];
+send_to_target(<<>>) ->
+    ok;
 send_to_target(B) when is_binary(B) ->
-    [list_to_binary(lists:reverse(binary_to_list(
-                                    binary:part(B, {0, byte_size(B)-2})
-                                   ))), "\r\n"].
+    {Device, CmdT} = case binary:split(B, <<"/">>, [global]) of
+        [<<>>, _T, Dev, Cmd] ->
+            {binary_to_atom(Dev, latin1), {Cmd, ""}};
+        [<<>>, _T, Dev, Cmd, Val] ->
+            {binary_to_atom(Dev, latin1), {Cmd, Val}}
+    end,
+    device:translate_command(self(), Device, CmdT),
+    ok.

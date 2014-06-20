@@ -257,6 +257,7 @@ send_command(Command, #{module:=Module, name:=Target}) ->
     Module:send_command(Target, Command).
 
 translate_command(Listener, Device, Command) ->
+    error_logger:error_msg("Logging cast of command ~p ~p ~p", [Device, Listener, Command]),
     gen_server:cast(Device, {translate, Listener, Command}).
 
 query_timeout(Device, CmdName) ->
