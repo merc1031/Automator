@@ -60,17 +60,26 @@ get_specification(Conf) ->
     Name = {name, list_to_atom(maps:get(device_name, Conf))},
     KBPress = fun(Key) when is_binary(Key) -> {Key, {multi, send_str_with_helo(packet_button(#{map_name => <<"KB">>, button_name => Key, queue => 1, repeat => 0}))}} end,
 
-    Keys = [
-            <<"right">>, <<"left">>, <<"up">>, <<"down">>, <<"enter">>, <<"backspace">>, <<"zero">>, <<"one">>,
-           <<"two">>, <<"three">>, <<"four">>, <<"five">>, <<"six">>, <<"seven">>, <<"eight">>, <<"nine">>,
-           <<"return">>, <<"escape">>, <<"tab">>, <<"space">>, <<"insert">>, <<"delete">>, <<"home">>,
-           <<"end">>, <<"numpadzero">>, <<"numpadone">>, <<"numpadtwo">>, <<"numpadthree">>, <<"numpadfour">>,
-           <<"numpadfive">>, <<"numpadsix">>, <<"numpadseven">>, <<"numpadeight">>, <<"numpadnine">>,
-           <<"numpadtimes">>, <<"numpadplus">>, <<"numpadminus">>, <<"numpadperiod">>, <<"numpaddivide">>,
-           <<"pageup">>, <<"pagedown">>, <<"menu">>, <<"pause">>, <<"play_pause">>, <<"stop">>, <<"equals">>,
-           <<"minus">>, <<"next_track">>, <<"prev_track">>, <<"f1">>, <<"f2">>, <<"f3">>, <<"f4">>, <<"f5">>,
-           <<"f6">>, <<"f7">>, <<"f8">>, <<"f9">>, <<"f10">>, <<"f11">>, <<"f12">>
-    ],
+    %%Found on  http://wiki.xbmc.org/?title=List_of_XBMC_keynames
+    Keys = [ <<"zero">>, <<"one">>, <<"two">>, <<"three">>, <<"four">>, <<"five">>, <<"six">>,
+             <<"seven">>, <<"eight">>, <<"nine">>, <<"backspace">>, <<"return">>, <<"enter">>,
+             <<"escape">>, <<"tab">>, <<"space">>, <<"left">>, <<"right">>, <<"up">>, <<"down">>,
+             <<"insert">>, <<"delete">>, <<"home">>, <<"end">>, <<"f1">>, <<"f2">>, <<"f3">>,
+             <<"f4">>, <<"f5">>, <<"f6">>, <<"f7">>, <<"f8">>, <<"f9">>, <<"f10">>, <<"f11">>,
+             <<"f12">>, <<"numpadzero">>, <<"numpadone">>, <<"numpadtwo">>, <<"numpadthree">>,
+             <<"numpadfour">>, <<"numpadfive">>, <<"numpadsix">>, <<"numpadseven">>,
+             <<"numpadeight">>, <<"numpadnine">>, <<"numpadtimes">>, <<"numpadplus">>,
+             <<"numpadminus">>, <<"numpadperiod">>, <<"numpaddivide">>, <<"pageup">>,
+             <<"pagedown">>, <<"printscreen">>, <<"menu">>, <<"pause">>, <<"leftshift">>,
+             <<"rightshift">>, <<"leftctrl">>, <<"rightctrl">>, <<"leftalt">>, <<"rightalt">>,
+             <<"leftwindows">>, <<"rightwindows">>, <<"capslock">>, <<"numlock">>, <<"scrolllock">>,
+             <<"equals">>, <<"comma">>, <<"minus">>, <<"period">>, <<"semicolon">>,
+             <<"forwardslash">>, <<"opensquarebracket">>, <<"backslash">>, <<"closesquarebracket">>,
+             <<"quote">>, <<"leftquote">>, <<"browser_refresh">>, <<"browser_search">>,
+             <<"browser_favorites">>, <<"browser_home">>, <<"volume_mute">>, <<"volume_down">>,
+             <<"volume_up">>, <<"next_track">>, <<"prev_track">>, <<"stop">>, <<"play_pause">>,
+             <<"launch_mail">>, <<"launch_media_select">>, <<"launch_app1_pc_icon">>
+           ],
     KBKeys = maps:from_list(lists:map(KBPress, Keys)),
 
     CommandMap = {command_map, maps:merge(KBKeys, #{
