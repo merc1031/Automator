@@ -6,6 +6,8 @@
 -export([packet_helo/3, packet_action/2, packet_notification/4, packet_ping/0]).
 -export([packet_get_header/2, packet_get_payload/2, packet_get_udp_message/2, packet_get_payload_size/2]).
 
+-export([keyboard_press/1]).
+
 -define(NOW, now()).
 
 -define(UNIQUE_IDENTIFICATION, element(1, ?NOW) * 1000000 + element(2, ?NOW)).
@@ -62,44 +64,23 @@
 
 get_specification(Conf) ->
     Name = {name, list_to_atom(maps:get(device_name, Conf))},
-    KBPress = fun
-        ({Key, Alias}) when is_binary(Key) ->
-                      {Key, {multi, send_str_with_helo(packet_button(#{map_name => <<"KB">>, button_name => Alias, queue => 1, repeat => 0}))}};
-        (Key) when is_binary(Key) ->
-                      {Key, {multi, send_str_with_helo(packet_button(#{map_name => <<"KB">>, button_name => Key, queue => 1, repeat => 0}))}}
-        end,
 
-    %%Found on  http://wiki.xbmc.org/?title=List_of_XBMC_keynames
-    Keys = [ <<"zero">>, <<"one">>, <<"two">>, <<"three">>, <<"four">>, <<"five">>, <<"six">>,
-             <<"seven">>, <<"eight">>, <<"nine">>, <<"backspace">>, <<"return">>, <<"enter">>,
-             <<"escape">>, <<"tab">>, <<"space">>, <<"left">>, <<"right">>, <<"up">>, <<"down">>,
-             <<"insert">>, <<"delete">>, <<"home">>, <<"end">>, <<"f1">>, <<"f2">>, <<"f3">>,
-             <<"f4">>, <<"f5">>, <<"f6">>, <<"f7">>, <<"f8">>, <<"f9">>, <<"f10">>, <<"f11">>,
-             <<"f12">>, <<"numpadzero">>, <<"numpadone">>, <<"numpadtwo">>, <<"numpadthree">>,
-             <<"numpadfour">>, <<"numpadfive">>, <<"numpadsix">>, <<"numpadseven">>,
-             <<"numpadeight">>, <<"numpadnine">>, <<"numpadtimes">>, <<"numpadplus">>,
-             <<"numpadminus">>, <<"numpadperiod">>, <<"numpaddivide">>, <<"pageup">>,
-             <<"pagedown">>, <<"printscreen">>, <<"menu">>, <<"pause">>, <<"leftshift">>,
-             <<"rightshift">>, <<"leftctrl">>, <<"rightctrl">>, <<"leftalt">>, <<"rightalt">>,
-             <<"leftwindows">>, <<"rightwindows">>, <<"capslock">>, <<"numlock">>, <<"scrolllock">>,
-             <<"equals">>, <<"comma">>, <<"minus">>, <<"period">>, <<"semicolon">>,
-             <<"forwardslash">>, <<"opensquarebracket">>, <<"backslash">>, <<"closesquarebracket">>,
-             <<"quote">>, <<"leftquote">>, <<"browser_refresh">>, <<"browser_search">>,
-             <<"browser_favorites">>, <<"browser_home">>, <<"volume_mute">>, <<"volume_down">>,
-             <<"volume_up">>, <<"next_track">>, <<"prev_track">>, <<"stop">>, <<"play_pause">>,
-             <<"launch_mail">>, <<"launch_media_select">>, <<"launch_app1_pc_icon">>
-           ],
-%    AZ = << {Char, <<(Char + ($A - $a))>>} || <<Char>> <- list_to_binary(lists:seq($a, $z)) >>,
-    AZ = [{<<Char>>, <<(Char + ($A - $a))>>} || Char <- lists:seq($a, $z)],
-    AZU = [<<X>> || X <- lists:seq($A, $Z) ],
-    Keys2 = Keys ++ AZU ++ AZ,
-    KBKeys = maps:from_list(lists:map(KBPress, Keys2)),
+    Mapping = [
+               {<<"info">>, <<"I">>},
+               {<<"context_menu">>, <<"C">>},
+               {<<"video">>, <<"V">>},
+               {<<"music">>, <<"M">>},
+               {<<"movies">>, <<"F">>},
+               {<<"home">>, <<"numpadtimes">>},
+               {<<"shutdown_menu">>, <<"numpadzero">>}
+    ],
 
-    CommandMap = {command_map, maps:merge(KBKeys, #{
+    Commands = maps:from_list(lists:map(fun keyboard_press/1, Mapping)),
+    CommandMap = {command_map, maps:merge(Commands, maps:merge(generate_keyboard_press_mapping(), #{
                     <<"release">> => {multi, send_str_with_helo(packet_button(#{code => 16#01, down => 0, queue => 0}))},
                     <<"notify">> => fun(_Cmd, Val) -> {multi, send_str_with_helo(packet_notification(Val, Val, ?ICON_NONE, undefined))} end,
                    <<"helo">> => {multi, packet_send_str(helo_packet())}
-    })},
+    }))},
 
     InitialDataState = {initial_data_state, #{
     }},
@@ -128,13 +109,102 @@ should_wait(_) ->
 helo_packet() ->
     packet_helo(<<"automator">>, ?ICON_NONE, undefined).
 
-mod_str_to_hex(<<"shift">>) ->
-    ?VK_SHIFT;
-mod_str_to_hex(<<"control">>) ->
-    ?VK_CONTROL;
-mod_str_to_hex(<<"alt">>) ->
-    ?VK_MENU.
+%% From https://github.com/xbmc/xbmc/blob/d4319255e2290c9d3cb2a1edfb926b92a7dcf857/xbmc/input/XBMC_keytable.cpp
+generate_keyboard_press_mapping() ->
+    NonPrintingDefault = [
+                          <<"backspace">>, <<"tab">>, <<"return">>,
+                          <<"escape">>, <<"esc">>
+    ],
 
+    NormalNumber = [
+                    <<"zero">>, <<"one">>, <<"two">>, <<"three">>,
+                    <<"four">>, <<"five">>, <<"six">>, <<"seven">>,
+                    <<"eight">>, <<"nine">>
+    ],
+
+    MiscPrintingChars = [
+                         <<"space">>, <<"exclaim">>, <<"doublequote">>,
+                         <<"hash">>, <<"dollar">>, <<"percent">>,
+                         <<"ampersand">>, <<"quote">>, <<"leftbracket">>,
+                         <<"rightbracket">>, <<"asterisk">>, <<"plus">>,
+                         <<"comma">>, <<"minus">>, <<"period">>,
+                         <<"forwardslash">>,
+
+                          <<"colon">>, <<"semicolon">>, <<"lessthan">>,
+                          <<"equals">>, <<"greaterthan">>, <<"questionmark">>,
+                          <<"at">>,
+
+                          <<"opensquarebracket">>, <<"backslash">>,
+                          <<"closesquarebracket">>, <<"caret">>, <<"underline">>,
+                          <<"leftquote">>,
+
+                          <<"openbrace">>, <<"pipe">>, <<"closebrace">>,
+                          <<"tilde">>
+    ],
+
+    NumericKeypad = [
+                     <<"numpadzero">>, <<"numpadone">>, <<"numpadtwo">>,
+                     <<"numpadthree">>, <<"numpadfour">>, <<"numpadfive">>,
+                     <<"numpadsix">>, <<"numpadseven">>, <<"numpadeight">>,
+                     <<"numpadnine">>,
+
+                      <<"numpaddivide">>, <<"numpadtimes">>, <<"numpadminus">>,
+                      <<"numpadplus">>, <<"enter">>, <<"numpadperiod">>
+    ],
+
+    MultiMediaKeys = [
+                      <<"browser_back">>, <<"browser_forward">>,
+                      <<"browser_refresh">>, <<"browser_stop">>,
+                      <<"browser_search">>, <<"browser_favorites">>,
+                      <<"browser_home">>, <<"volume_mute">>, <<"volume_down">>,
+                      <<"volume_up">>, <<"next_track">>, <<"prev_track">>,
+                      <<"stop">>, <<"play_pause">>, <<"rewind">>,
+                      <<"fastforward">>, <<"launch_mail">>,
+                      <<"launch_media_select">>, <<"launch_app1_pc_icon">>,
+                      <<"launch_app2_pc_icon">>, <<"launch_file_browser">>,
+                      <<"launch_media_center">>, <<"play_pause">>,
+
+                      <<"stop">>, <<"rewind">>, <<"fastforward">>, <<"record">>
+    ],
+
+
+    FnKeys = [
+              <<"f1">>, <<"f2">>, <<"f3">>, <<"f4">>, <<"f5">>, <<"f6">>,
+              <<"f7">>, <<"f8">>, <<"f9">>, <<"f10">>, <<"f11">>, <<"f12">>,
+              <<"f13">>, <<"f14">>, <<"f15">>
+    ],
+
+    MiscNonPriniting = [
+                        <<"up">>, <<"down">>, <<"right">>, <<"left">>,
+                        <<"insert">>, <<"delete">>, <<"home">>, <<"end">>,
+                        <<"pageup">>, <<"pagedown">>, <<"numlock">>,
+                        <<"capslock">>, <<"rightshift">>, <<"leftshift">>,
+                        <<"rightctrl">>, <<"leftctrl">>, <<"leftalt">>,
+                        <<"leftwindows">>, <<"rightwindows">>, <<"menu">>,
+                        <<"pause">>, <<"scrolllock">>, <<"printscreen">>,
+                        <<"power">>, <<"sleep">>
+    ],
+
+    Keys = lists:flatten([
+                          NonPrintingDefault, NormalNumber, MiscPrintingChars,
+                          NumericKeypad, MultiMediaKeys, FnKeys, MiscNonPriniting
+    ]),
+
+    AZ = [{<<Char>>, <<(Char + ($A - $a))>>} || Char <- lists:seq($a, $z)],
+    AZU = [<<X>> || X <- lists:seq($A, $Z) ],
+    Keys2 = lists:map(
+              fun
+                  ({K,V}) -> {<<"key:", K/binary>>, V};
+                  (K) -> {<<"key:", K/binary>>, K} end,
+              Keys ++ AZU ++ AZ
+    ),
+    maps:from_list(lists:map(fun ?MODULE:keyboard_press/1, Keys2)).
+
+keyboard_press({Key, Alias}) when is_binary(Key) ->
+    {Key, {multi, send_str_with_helo(packet_button(#{map_name => <<"KB">>, button_name => Alias, queue => 1, repeat => 0}))}};
+keyboard_press(Key) when is_binary(Key) ->
+    {Key, {multi, send_str_with_helo(packet_button(#{map_name => <<"KB">>, button_name => Key, queue => 1, repeat => 0}))}}.
+%%
 %%Packet utils
 send_str_with_helo(P) ->
     packet_compose_and_send_str([helo_packet(), P]).
