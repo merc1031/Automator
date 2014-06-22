@@ -55,10 +55,19 @@
 -define(BT_AXIS, 16#80).
 -define(BT_AXISSINGLE,  16#100).
 
+-define(VK_SHIFT,  16#10).
+-define(VK_CONTROL,  16#11).
+-define(VK_MENU,  16#12).
+
 
 get_specification(Conf) ->
     Name = {name, list_to_atom(maps:get(device_name, Conf))},
-    KBPress = fun(Key) when is_binary(Key) -> {Key, {multi, send_str_with_helo(packet_button(#{map_name => <<"KB">>, button_name => Key, queue => 1, repeat => 0}))}} end,
+    KBPress = fun
+        ({Key, Alias}) when is_binary(Key) ->
+                      {Key, {multi, send_str_with_helo(packet_button(#{map_name => <<"KB">>, button_name => Alias, queue => 1, repeat => 0}))}};
+        (Key) when is_binary(Key) ->
+                      {Key, {multi, send_str_with_helo(packet_button(#{map_name => <<"KB">>, button_name => Key, queue => 1, repeat => 0}))}}
+        end,
 
     %%Found on  http://wiki.xbmc.org/?title=List_of_XBMC_keynames
     Keys = [ <<"zero">>, <<"one">>, <<"two">>, <<"three">>, <<"four">>, <<"five">>, <<"six">>,
@@ -80,12 +89,16 @@ get_specification(Conf) ->
              <<"volume_up">>, <<"next_track">>, <<"prev_track">>, <<"stop">>, <<"play_pause">>,
              <<"launch_mail">>, <<"launch_media_select">>, <<"launch_app1_pc_icon">>
            ],
-    KBKeys = maps:from_list(lists:map(KBPress, Keys)),
+%    AZ = << {Char, <<(Char + ($A - $a))>>} || <<Char>> <- list_to_binary(lists:seq($a, $z)) >>,
+    AZ = [{<<Char>>, <<(Char + ($A - $a))>>} || Char <- lists:seq($a, $z)],
+    AZU = [<<X>> || X <- lists:seq($A, $Z) ],
+    Keys2 = Keys ++ AZU ++ AZ,
+    KBKeys = maps:from_list(lists:map(KBPress, Keys2)),
 
     CommandMap = {command_map, maps:merge(KBKeys, #{
                     <<"release">> => {multi, send_str_with_helo(packet_button(#{code => 16#01, down => 0, queue => 0}))},
                     <<"notify">> => fun(_Cmd, Val) -> {multi, send_str_with_helo(packet_notification(Val, Val, ?ICON_NONE, undefined))} end,
-                   <<"helo">> => {multi, packet_send_str(packet_helo(<<"automator">>, ?ICON_NONE, undefined))}
+                   <<"helo">> => {multi, packet_send_str(helo_packet())}
     })},
 
     InitialDataState = {initial_data_state, #{
@@ -100,7 +113,7 @@ get_specification(Conf) ->
                  Ip,
                  Port,
                  #{
-                   init => packet_send_str(packet_helo(<<"automator">>, ?ICON_NONE, undefined)),
+                   init => packet_send_str(helo_packet()),
                    keepalive => {20000, packet_send_str(packet_ping())}
                   }
                 ]
@@ -112,9 +125,19 @@ get_specification(Conf) ->
 should_wait(_) ->
     no.
 
+helo_packet() ->
+    packet_helo(<<"automator">>, ?ICON_NONE, undefined).
+
+mod_str_to_hex(<<"shift">>) ->
+    ?VK_SHIFT;
+mod_str_to_hex(<<"control">>) ->
+    ?VK_CONTROL;
+mod_str_to_hex(<<"alt">>) ->
+    ?VK_MENU.
+
 %%Packet utils
 send_str_with_helo(P) ->
-    packet_compose_and_send_str(packet_helo(<<"automator">>, ?ICON_NONE, undefined), P).
+    packet_compose_and_send_str([helo_packet(), P]).
 
 format_string(String) when is_binary(String) ->
     <<String/binary, <<"\x00">>/binary >>;
@@ -345,10 +368,19 @@ packet_send_str(#xbmc_packet{}=P) ->
         [],
         lists:seq(0, packet_num_packets(P) - 1)).
 
-packet_compose_and_send_str(P, P2) ->
+%packet_compose_and_send_str(P, P2) ->
+%    L1 = packet_send_str(P),
+%    L2 = packet_send_str(P2),
+%    lists:flatten([L1, L2]).
+
+packet_compose_and_send_str(Packets) ->
+    packet_compose_and_send_str(Packets, []).
+
+packet_compose_and_send_str([], Acc) ->
+    lists:flatten(lists:reverse(Acc));
+packet_compose_and_send_str([P | Rest], Acc) ->
     L1 = packet_send_str(P),
-    L2 = packet_send_str(P2),
-    lists:flatten([L1, L2]).
+    packet_compose_and_send_str(Rest, [L1 | Acc]).
 
 -include_lib("eunit/include/eunit.hrl").
 
