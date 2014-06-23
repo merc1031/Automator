@@ -67,6 +67,10 @@ send_to_target(B) when is_binary(B) ->
         [<<>>, _T, Dev, Cmd] ->
             {binary_to_atom(Dev, latin1), {Cmd, ""}};
         [<<>>, _T, Dev, Cmd, Val] ->
+            {binary_to_atom(Dev, latin1), {Cmd, Val}};
+        [<<>>, _T, Dev, Cmd, <<>>] ->
+            {binary_to_atom(Dev, latin1), {Cmd, ""}};
+        [<<>>, _T, Dev, Cmd, Val, <<>>] ->
             {binary_to_atom(Dev, latin1), {Cmd, Val}}
     end,
     device:translate_command(self(), Device, CmdT),
