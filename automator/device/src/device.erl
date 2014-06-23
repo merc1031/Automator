@@ -26,7 +26,7 @@
           data_state = maps:new() :: map(),
           clean_response_action :: fun((list()) -> list()),
           data_state_refresher = maps:new() :: map(),
-          waiting = [] :: list(),
+          waiting = sets:new() :: sets:set(),
           data_state_timer :: timer:tref(),
           old_data = <<>> :: binary()
 }).
@@ -117,7 +117,7 @@ handle_cast({translate, Listener, Command}, State=#device_state{target_locator=T
                                                              waiting=Waiting,
                                                              data_state=DataState
                                                              }) ->
-        State2 = State#device_state{waiting=lists:append([{Listener, link(Listener)}], Waiting)},
+        State2 = State#device_state{waiting=sets:add_element({Listener, link(Listener)}, Waiting)}, %% Todo change to monitor and 'DOWN'
         error_logger:error_msg("Cast got command from ~p ~p", [Listener, Command]),
         case translate(Command, CommandMap, DataState) of
             {multi, Series} ->
@@ -158,7 +158,7 @@ handle_info({response, Response}, State=#device_state{
     {noreply, NewState};
 handle_info(_Packet={'EXIT', Pid, _Reason}, State=#device_state{waiting=Waiting}) ->
     error_logger:error_msg("A waiting listener died ~p", [Pid]),
-    {noreply, State#device_state{waiting=lists:filter(fun({ListPid, _ListLinkResult}) -> Pid =/= ListPid end, Waiting)}};
+    {noreply, State#device_state{waiting=sets:filter(fun({ListPid, _ListLinkResult}) -> Pid =/= ListPid end, Waiting)}};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -185,7 +185,7 @@ reply(ParsedResponses, Translated, #device_state{
     FinalTranslated = lists:flatten([Translated, AdditionalTranslated]),
     lists:foreach(fun({Listener, _}) ->
                           error_logger:error_msg("Replying to ~p with ~p", [Listener, FinalTranslated]),
-                          Listener ! {response, FinalTranslated} end, Waiting).
+                          Listener ! {response, FinalTranslated} end, sets:to_list(Waiting)).
 
 refresh_data_state(State=#device_state{command_map=CommandMap,
                                         target_locator=Target,
