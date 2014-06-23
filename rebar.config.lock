@@ -32,6 +32,12 @@
                           "509c27424d67d347605c3f6e85e900528f9d3463"}},
        {rebar_lock_deps_plugin,".*",
                                {git,"git://github.com/seth/rebar_lock_deps_plugin.git",
-                                    "9711549b8a84b065eb2edc22f8eb6ff85e3c94e8"}}]}.
+                                    "9711549b8a84b065eb2edc22f8eb6ff85e3c94e8"}},
+       {mochiweb_util,".*",
+                      {git,"git://github.com/bipthelin/mochiweb_util.git",
+                           "de4fd402f7c1e1a6e683f73a41ae863b69888402"}},
+       {jiffy,".*",
+              {git,"git://github.com/davisp/jiffy.git",
+                   "99867af6e9bfec6bb80b10524d4dc27e39150dee"}}]}.
 {plugins,[rebar_lock_deps_plugin]}.
 

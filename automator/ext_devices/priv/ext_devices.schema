@@ -16,6 +16,16 @@
                                                              {datatype, atom}
                                                             ]}.
 
+{mapping, "device.$name.target.user", "ext_devices.devices", [
+                                                             {default, "none" },
+                                                             {include_default, "default"}
+                                                            ]}.
+
+{mapping, "device.$name.target.pass", "ext_devices.devices", [
+                                                             {default, "none" },
+                                                             {include_default, "default"}
+                                                            ]}.
+
 %{ translation, "ext_devices.device", fun(_Conf) -> ok end}.
 {
  translation,
@@ -37,16 +47,48 @@
                             end,
                             Conf),
 
-         Devices = lists:zipwith3(
+         UserList = lists:filter(
+                            fun({K, _V}) ->
+                                    cuttlefish_variable:is_fuzzy_match(K, string:tokens("device.$name.target.user", "."))
+                            end,
+                            Conf),
+         PassList = lists:filter(
+                            fun({K, _V}) ->
+                                    cuttlefish_variable:is_fuzzy_match(K, string:tokens("device.$name.target.pass", "."))
+                            end,
+                            Conf),
+
+         DevicesA = lists:zipwith3(
                     fun(
                       {[_, K, _], DeviceType},
                       {[_, K, _, _], Ip},
                       {[_, K, _, _], Type}) ->
-                            { K, #{ device_type => DeviceType, target => #{ ip => Ip, type => Type } } }
+                            { K, #{ device_type => DeviceType, target => #{ ip => Ip, type => Type} } }
                     end,
                     TypesList,
                     TargetIpList,
                     TargetTypeList),
+         Devices = lists:zipwith3(
+                    fun(
+                      {K, M = #{ target := Target }},
+                      {[_, K, _, _], User},
+                      {[_, L, _, _], Pass} ) ->
+                            {K, maps:put(target, maps:merge(Target, #{ user => User, pass => Pass}), M)}
+                    end,
+                    DevicesA,
+                    UserList,
+                    PassList),
+
+%         Devices = lists:zipwith3(
+%                    fun(
+%                      {[_, K, _], DeviceType},
+%                      {[_, K, _, _], Ip},
+%                      {[_, K, _, _], Type}) ->
+%                            { K, #{ device_type => DeviceType, target => #{ ip => Ip, type => Type } } }
+%                    end,
+%                    TypesList,
+%                    TargetIpList,
+%                    TargetTypeList),
 
          case Devices of
              [] ->

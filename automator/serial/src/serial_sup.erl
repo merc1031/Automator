@@ -29,5 +29,8 @@ init([]) ->
     UdpBridge = {udp_bridge,
                            {udp_bridge, start_link, []},
                            permanent, 5000, worker, [udp_bridge]},
-    {ok, { {one_for_one, 5, 10}, [SerialTCPBridge, UdpBridge]} }.
+    HttpBridgeSupervisor = {http_bridge_sup,
+                            {http_bridge_sup, start_link, []},
+                           permanent, 5000, supervisor, [http_bridge_sup]},
+    {ok, { {one_for_one, 5, 10}, [SerialTCPBridge, UdpBridge, HttpBridgeSupervisor]} }.
 
