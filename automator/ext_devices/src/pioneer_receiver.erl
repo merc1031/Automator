@@ -13,8 +13,16 @@ get_specification(Conf) ->
         <<"power_on">> => {multi, ["\r", {sleep, 200}, "PO\r", {sleep, 2200}, "?P\r"]},
         <<"power">> => "?P\r",
         <<"input">> => "?F\r",
+        <<"mute">> => "?M\r",
+        <<"mute_on">> => "MO\r",
+        <<"mute_off">> => "MF\r",
+        <<"mute_toggle">> => fun(_Cmd, _Val, DataState=#{}) ->
+                                device_utils:with_cached_value(<<"MUT">>, DataState, fun(OldMute) ->
+                                        NewMute = not either({<<"0">>, true}, {<<"1">>, false}, OldMute), %0 or 1   0 is ON
+                                        io_lib:format("M~s\r", [to_receiver_on_off(NewMute)])
+                                                         end)
+                        end,
         <<"inc_vol_db">> => fun(_Cmd,Val, DataState=#{}) ->
-                                error_logger:error_msg("DataState is ~p", [DataState]),
                                 device_utils:with_cached_value(<<"VOL">>, DataState, fun(OldVol) ->
                                         OldVolDb = (binary_to_integer(OldVol) / 2) - 80.5, %%Convert to Db
                                         NewVolDb = OldVolDb + binary_to_integer(Val), %%Add Db increment
@@ -39,9 +47,7 @@ get_specification(Conf) ->
     ResponseParser = {response_parser, {
                         fun(Response, OldData, Parser) ->
                             {Working, Buffer} = device_utils:line_protocol_helper(Response, OldData, <<"\r\n">>),
-                            error_logger:error_msg("We hav eparsed some messaged ~p ~p", [Working, Buffer]),
                             Matches = device_utils:run_regex(Working, Parser),
-                            error_logger:error_msg("We have matches! ~p", [Matches]),
                             {Matches, Buffer}
                         end,
                         fun() -> {ok, Re} = re:compile("([^0-9]+)([0-9]*)"), Re end()
@@ -52,15 +58,19 @@ get_specification(Conf) ->
                         (_Cmd, Val) -> io_lib:format("vol~p~n", [(binary_to_integer(Val) / 2) - 80.5]) end,
         <<"PWR">> => fun
                         (_, <<>>) -> "";
-                        (_Cmd, Val) -> io_lib:format("power~s~n", [case Val of <<"1">> -> "Off"; <<"0">> -> "On" end]) end,
+                        (_Cmd, Val) -> io_lib:format("power~s~n", [receiver_boolean(Val)]) end,
         <<"FN">> => fun
                         (_, <<>>) -> "";
-                        (_Cmd, Val) -> io_lib:format("input~s~n", [receiver_inputs(Val)]) end
+                        (_Cmd, Val) -> io_lib:format("input~s~n", [receiver_inputs(Val)]) end,
+        <<"MUT">> => fun
+                        (_, <<>>) -> "";
+                        (_Cmd, Val) -> io_lib:format("mute~s~n", [receiver_boolean(Val)]) end
     }},
 
     InitialDataState = {initial_data_state, #{
         "vol" => [{cmd, <<"vol">>}, {res, <<"VOL">>}],
-        "input" => [{cmd, <<"input">>}, {res, <<"FN">>}]
+        "input" => [{cmd, <<"input">>}, {res, <<"FN">>}],
+        "mute" => [{cmd, <<"mute">>}, {res, <<"MUT">>}]
     }},
 
     #{ target := #{ ip := {Ip, Port}, type := Type } } = Conf,
@@ -76,6 +86,20 @@ get_specification(Conf) ->
                      end},
     Params = [Name, CommandMap, ResponseParser, ResponseMap, Target, InitialDataState, CleanResponse],
     Params.
+
+to_receiver_on_off(Val) ->
+    either({true, "O"}, {false, "F"}, Val).
+
+receiver_boolean(Val) ->
+    either({<<"1">>, "Off"}, {<<"0">>, "On"}, Val).
+
+either(TL, TR, Val) ->
+    case {TL, TR} of
+        { {Val, Cap}, _ } ->
+            Cap;
+        { _, {Val, Cap} } ->
+            Cap
+    end.
 
 receiver_inputs(Val) ->
     case Val of
@@ -139,7 +163,5 @@ can_parse_no_value_response_followed_by_normal_response_test() ->
     {Parser, ParserState} = proplists:get_value(response_parser, Spec),
     {Matches, <<>>} = Parser(Response, <<>>, ParserState),
     [[<<"R">>, <<>>],[<<"FN">>, <<"19">>]] = Matches.
-
-
 
 -endif.
