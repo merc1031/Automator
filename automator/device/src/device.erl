@@ -34,12 +34,12 @@
 
 start_link(PropList) ->
         Name = proplists:get_value(name, PropList),
-        error_logger:error_msg("~p:start_link()~n", [Name]),
+        error_logger:info_msg("~p:start_link() for ~p called from ~p", [?MODULE, Name, self()]),
         gen_server:start_link({local, Name}, ?MODULE, [PropList], []).
 
 init([PropList]) ->
         process_flag(trap_exit, true),
-        error_logger:error_msg("~p:init()~n", [?MODULE]),
+        error_logger:info_msg("~p ~p: ~p:init()", [?MODULE, self(), ?MODULE]),
         Name = proplists:get_value(name, PropList),
         CommandMap = proplists:get_value(command_map, PropList),
         ResponseMap = proplists:get_value(response_map, PropList, #{}),
@@ -96,7 +96,7 @@ handle_call(_Request, _From, State) ->
         {reply, Reply, State}.
 
 handle_cast({register, undefined, _}, State) ->
-        error_logger:warning_msg("Tried to register undefined target"),
+        error_logger:warning_msg("~p ~p: Tried to register with no target defined!", [?MODULE, self()]),
         {noreply, State};
 handle_cast({register, {Module, Function, Args}}, State=#device_state{name=Name}) ->
     ok = erlang:apply(Module, Function, [self() | [Name | Args]]),
@@ -110,7 +110,7 @@ handle_cast({register, {Module, Function, Args}}, State=#device_state{name=Name}
     {noreply, State2};
 handle_cast(init, State=#device_state{}) ->
     NewState = refresh_data_state(State),
-    error_logger:error_msg("Initial state set to ~p~n", [NewState]),
+    error_logger:info_msg("~p ~p: ~p Initial state set to ~p", [?MODULE, self(), State#device_state.name, NewState]),
     {noreply, NewState};
 handle_cast({translate, Listener, Command}, State=#device_state{target_locator=Target,
                                                              command_map=CommandMap,
@@ -118,19 +118,17 @@ handle_cast({translate, Listener, Command}, State=#device_state{target_locator=T
                                                              data_state=DataState
                                                              }) ->
         State2 = State#device_state{waiting=sets:add_element({Listener, link(Listener)}, Waiting)}, %% Todo change to monitor and 'DOWN'
-        error_logger:error_msg("Cast got command from ~p ~p", [Listener, Command]),
+        error_logger:info_msg("~p ~p: Device has queued a listener ~p in ~p", [?MODULE, self(), Listener, Waiting]),
+        error_logger:info_msg("~p ~p: Device has received a command ~p", [?MODULE, self(), Command]),
         case translate(Command, CommandMap, DataState) of
             {multi, Series} ->
                 lists:foreach(fun({sleep, Time}=_Action) ->
-                                    error_logger:error_msg("Command is translated to sleep ~p", [Time]),
                                     timer:sleep(Time);
                                  (Action) ->
-                                    error_logger:error_msg("Command is translated to ~p", [Action]),
                                     send_command(Action, Target)
                             end, Series);
 
             TranslatedCommand ->
-                error_logger:error_msg("Command is translated to ~p", [TranslatedCommand]),
                 send_command(TranslatedCommand, Target)
         end,
         {noreply, State2};
@@ -147,7 +145,7 @@ handle_info({response, Response}, State=#device_state{
                                            response_parser=Parser,
                                            old_data=OldData
                                            }) ->
-    error_logger:error_msg("Device ~p got a response ~p", [State#device_state.name, Response]),
+    error_logger:info_msg("~p ~p: Device (~p) has received a response ~p", [?MODULE, self(), State#device_state.name, Response]),
     {ParsedResponses, Buffer} = parse_response(CleanResponseAction(Response), OldData, Parser),
     State2 = State#device_state{old_data=Buffer},
     Translated = translate(ParsedResponses, ResponseMap, DataState),
@@ -156,8 +154,8 @@ handle_info({response, Response}, State=#device_state{
 
     NewState = apply_data_state(ParsedResponses, State2),
     {noreply, NewState};
-handle_info(_Packet={'EXIT', Pid, _Reason}, State=#device_state{waiting=Waiting}) ->
-    error_logger:error_msg("A waiting listener died ~p", [Pid]),
+handle_info(_Packet={'EXIT', Pid, Reason}, State=#device_state{waiting=Waiting}) ->
+    error_logger:info_msg("~p ~p: A waiting listener died ~p from ~p because ~p", [?MODULE, self(), Pid, Waiting, Reason]),
     {noreply, State#device_state{waiting=sets:filter(fun({ListPid, _ListLinkResult}) -> Pid =/= ListPid end, Waiting)}};
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -171,9 +169,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 populate_reply(ParsedResponses, ResponseMap, DataState) ->
     Keys = lists:map(fun({L,_}) -> L end, ParsedResponses),
-    error_logger:error_msg("DataState in replying ~p", [DataState]),
     Unnaccounted = maps:without(Keys, DataState),
-    error_logger:error_msg("Unaccoundted in replying ~p", [Unnaccounted]),
     lists:flatten(maps:fold(fun(K,V,Acc) -> [Acc, translate({K,V}, ResponseMap, DataState)] end, [], Unnaccounted)).
 
 reply(ParsedResponses, Translated, #device_state{
@@ -184,7 +180,7 @@ reply(ParsedResponses, Translated, #device_state{
     AdditionalTranslated = populate_reply(ParsedResponses, ResponseMap, DataState),
     FinalTranslated = lists:flatten([Translated, AdditionalTranslated]),
     lists:foreach(fun({Listener, _}) ->
-                          error_logger:error_msg("Replying to ~p with ~p", [Listener, FinalTranslated]),
+                          error_logger:info_msg("~p ~p: Replying to ~p with ~p", [?MODULE, self(), Listener, FinalTranslated]),
                           Listener ! {response, FinalTranslated} end, sets:to_list(Waiting)).
 
 refresh_data_state(State=#device_state{command_map=CommandMap,
@@ -205,12 +201,10 @@ refresh_data_state(State=#device_state{command_map=CommandMap,
 apply_data_state([], State=#device_state{}) ->
     State;
 apply_data_state(_TranslatedResponses=[{Resp, Val}|Rest], State=#device_state{data_state=DataState}) ->
-    error_logger:error_msg("Time to apply data state", []),
     NewDataState = case maps:find(Resp, DataState) of 
         error ->
             DataState;
         {ok, _} ->
-            error_logger:error_msg("Updateing data state for ~p to ~p", [Resp, Val]),
             maps:put(Resp, Val, DataState)
     end,
     apply_data_state(Rest, State#device_state{data_state=NewDataState}).
@@ -249,7 +243,7 @@ translate(_Data={LeftRaw, RightRaw}, TranslateMap, DataState) ->
         {ok, Translator} ->
             Translator;
         error ->
-            error_logger:error_msg("No translation for pattern ~p:Val ~p In ~p~n", [Left, Right, TranslateMap]),
+            error_logger:error_msg("~p ~p: had no translation for pattern ~p(Val ~p) In ~p", [?MODULE, self(), Left, Right, TranslateMap]),
             ""
     end.
 
@@ -257,7 +251,6 @@ send_command(Command, #{module:=Module, name:=Target}) ->
     Module:send_command(Target, Command).
 
 translate_command(Listener, Device, Command) ->
-    error_logger:error_msg("Logging cast of command ~p ~p ~p", [Device, Listener, Command]),
     gen_server:cast(Device, {translate, Listener, Command}).
 
 query_timeout(Device, CmdName) ->

@@ -14,10 +14,10 @@ init({_Transport, http}, Req, _Opts) ->
     {Device, Req2} = cowboy_req:binding(device, Req),
     {Cmd, Req3} = cowboy_req:binding(cmd, Req2),
     {Val, Req4} = cowboy_req:binding(val, Req3, ""),
-    error_logger:error_msg("Request incoming from ~p ~p", [self(), {Device, Cmd, Val}]),
+    error_logger:error_msg("~p ~p: Request ~p", [?MODULE, self(), {Device, Cmd, Val}]),
     GraceTimeout = device:query_timeout(Device, Cmd),
     ShouldWait = device:query_should_wait(Device, Cmd),
-    error_logger:error_msg("We have queried the following for device ~p : Wait ~p Timout ~p", [Device, ShouldWait, GraceTimeout]),
+    error_logger:error_msg("~p ~p: Device(~p) state -> Wait ~p, Timout ~p", [?MODULE, self(), Device, ShouldWait, GraceTimeout]),
     device:translate_command(self(), Device, {Cmd, Val}),
     case ShouldWait of
         yes ->
@@ -36,9 +36,6 @@ info({response, Translated}, Req, State) ->
             Req2
     end,
     {ok, ReqF, State};
-%info({'EXIT', _Pid, _Reason}, Req, State) ->
-%    {ok, Req2} = cowboy_req:reply(200, [], IoList, Req),
-%    {ok, Req2, State};
 info(_Message, Req, State) ->
     {loop, Req, State, hibernate}.
 

@@ -22,7 +22,7 @@ start_link(Ref, Socket, Transport, Opts) ->
 init([]) -> {ok, undefined}.
 
 init(Ref, Socket, Transport, _Opts = []) ->
-    error_logger:info_msg("~p:init ~p", [?MODULE, self()]),
+    error_logger:info_msg("~p ~p: ~p:init", [?MODULE, self(), ?MODULE]),
     ok = proc_lib:init_ack({ok, self()}),
     ok = ranch:accept_ack(Ref),
     ok = Transport:setopts(Socket, [{active, once}]),
@@ -32,7 +32,7 @@ init(Ref, Socket, Transport, _Opts = []) ->
 handle_info({tcp, _Socket, Data}, State=#state{
                                           socket=ReplySocket,
                                           transport=Transport}) ->
-    error_logger:info_msg("~p ~p got a tcp request ~p", [?MODULE, self(), Data]),
+    error_logger:info_msg("~p ~p: Handling an incoming tcp request ~p", [?MODULE, self(), Data]),
     Datas = binary:split(Data, <<"\r\n">>, [global]),
     ShouldWaits = lists:map(fun send_to_target/1, Datas),
     case lists:any(fun (X) -> X =:= yes end, ShouldWaits) of
@@ -47,21 +47,21 @@ handle_info({tcp, _Socket, Data}, State=#state{
 handle_info({response, Translated}, State=#state{
                                              socket=Socket,
                                              transport=Transport}) ->
-    error_logger:info_msg("~p ~p has a tcp response ~p", [?MODULE, self(), Translated]),
+    error_logger:info_msg("~p ~p: Handling an outgoing tcp response ~p", [?MODULE, self(), Translated]),
     Transport:setopts(Socket, [{active, once}]),
     Transport:send(Socket, Translated),
     {noreply, State};
 handle_info({tcp_closed, _Socket}, State) ->
-    error_logger:info_msg("~p ~p is tcp_closed", [?MODULE, self()]),
+    error_logger:info_msg("~p ~p: is tcp_closed", [?MODULE, self()]),
     {stop, normal, State};
 handle_info({tcp_error, _, Reason}, State) ->
-    error_logger:info_msg("~p ~p is tcp_error for reason ~p", [?MODULE, self(), Reason]),
+    error_logger:info_msg("~p ~p: is tcp_error for reason ~p", [?MODULE, self(), Reason]),
     {stop, Reason, State};
 handle_info(timeout, State) ->
-    error_logger:info_msg("~p ~p is timeout", [?MODULE, self()]),
+    error_logger:info_msg("~p ~p: is timeout", [?MODULE, self()]),
     {stop, normal, State};
 handle_info(Info, State) ->
-    error_logger:info_msg("~p ~p got unknown info msg ~p", [?MODULE, self(), Info]),
+    error_logger:info_msg("~p ~p: got unknown info msg ~p", [?MODULE, self(), Info]),
     {stop, normal, State}.
 
 handle_call(_Request, _From, State) ->
@@ -91,5 +91,4 @@ send_to_target(B) when is_binary(B) ->
     end,
     ShouldWait = device:query_should_wait(Device, CmdT),
     device:translate_command(self(), Device, CmdT),
-    error_logger:info_msg("~p ~p Sent to target ~p", [?MODULE, self(), B]),
     ShouldWait.

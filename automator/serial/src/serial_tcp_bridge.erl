@@ -22,7 +22,7 @@ start_link() ->
     gen_server:start_link({local, serial_tcp_bridge}, serial_tcp_bridge, [], []).
 
 init([]) ->
-    error_logger:info_msg("~p:init()~n", [?MODULE]),
+    error_logger:info_msg("~p ~p ~p:init()", [?MODULE, self(), ?MODULE]),
     {ok, #serial_tcp_bridge_state{}}.
 
 connect(ErlangIp, Port) ->

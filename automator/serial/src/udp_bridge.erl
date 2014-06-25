@@ -21,7 +21,7 @@ start_link() ->
     gen_server:start_link({local, udp_bridge}, udp_bridge, [], []).
 
 init([]) ->
-    error_logger:info_msg("~p:init()~n", [?MODULE]),
+    error_logger:info_msg("~p ~p: ~p:init()", [?MODULE, self(), ?MODULE]),
     {ok, #udp_bridge_state{}}.
 
 connect() ->
@@ -41,7 +41,7 @@ send_command_to_device(Target, Command, State=#udp_bridge_state{
                     throw({?MODULE, io_lib:format("Could not send to Target ~p for Command ~p for reason ~p", [Target, Command, Reason])})
             end;
         error ->
-            error_logger:error_msg("This is bad.", [])
+            error_logger:error_msg("~p ~p: Target data not found for ~p. This should never happen", [?MODULE, self(), Target])
     end.
 
 handle_call(_Request, _From, State) ->
@@ -78,10 +78,9 @@ handle_cast(_Msg, State) ->
 handle_info({keepalive, Uid, KeepAlivePackets}, State=#udp_bridge_state{name_to_data_map=NameToDataMap}) ->
     case maps:find(Uid, NameToDataMap) of
         {ok, #{ socket := Socket, ip := EIp, port := Port }} ->
-            error_logger:info_msg("Keepalive triggered for ~p", [Uid]),
             lists:foreach(fun(Packet) -> ok = gen_udp:send(Socket, EIp, Port, Packet) end, KeepAlivePackets);
         error ->
-            error_logger:error_msg("BAD", [])
+            error_logger:error_msg("~p ~p: Triggerd keepalive for ~p but couldnt find it", [?MODULE, self(), Uid])
     end,
     {noreply, State};
 handle_info(_Info, State) ->
@@ -104,7 +103,6 @@ set_keepalive(KeepAliveConfig, #{uid := Uid}) ->
 register_device(From, DeviceModule, Ip, Port, Opts=#{}) ->
     gen_server:cast(?MODULE, {register_device, From, DeviceModule, Ip, Port, Opts}).
 
-send_command(Target, Command) -> 
-    error_logger:error_msg("Udp Getting a command casted ~p ~p", [Target, Command]),
+send_command(Target, Command) ->
     gen_server:cast(?MODULE, {command, Target, Command}).
 
