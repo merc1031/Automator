@@ -26,19 +26,18 @@ init(Ref, Socket, Transport, _Opts = []) ->
     ok = ranch:accept_ack(Ref),
     ok = Transport:setopts(Socket, [{active, once}]),
     gen_server:enter_loop(?MODULE, [],
-                          #state{socket=Socket, transport=Transport},
-                          ?TIMEOUT).
+                          #state{socket=Socket, transport=Transport}).
 
 handle_info({tcp, _Socket, Data}, State=#state{}) ->
     Datas = binary:split(Data, <<"\r\n">>, [global]),
     lists:map(fun send_to_target/1, Datas),
-    {noreply, State, ?TIMEOUT};
+    {noreply, State};
 handle_info({response, Translated}, State=#state{
                                              socket=Socket,
                                              transport=Transport}) ->
     Transport:setopts(Socket, [{active, once}]),
     Transport:send(Socket, Translated),
-    {noreply, State, ?TIMEOUT};
+    {noreply, State};
 handle_info({tcp_closed, _Socket}, State) ->
     {stop, normal, State};
 handle_info({tcp_error, _, Reason}, State) ->
