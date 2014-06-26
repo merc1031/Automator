@@ -7,6 +7,6 @@ if [ "$TEST_FILE" == "" ]; then
     exit 1
 fi
 
-if make generate; then
+if make; then
     erl -noshell -pa ebin -eval "eunit:test($TEST_FILE, [verbose])" -s init stop
 fi

@@ -104,35 +104,44 @@ either(TL, TR, Val) ->
             Cap
     end.
 
+
+inputs() ->
+    Forward = #{
+        dvd => 04,
+        bd => 25,
+        'tv/sat' => 05,
+        dvr => 15,
+        video1 => 10,
+        video2 => 14,
+        hdmi1 => 19,
+        hdmi2 => 20,
+        hdmi3 => 21,
+        hdmi4 => 22,
+        'home-media-gallery' => 26,
+        'ipod-usb' => 17,
+        'xm-radio' => 18,
+        sirius => 27,
+        cd => 01,
+        'cd-r-tape' => 03,
+        tuner => 02,
+        aux => 29,
+        phono => 00,
+        'multi-ch-in' => 12,
+        'hdmi-cyclic' => 31
+    },
+    maps:merge(maps:from_list(lists:map(fun({K,V}) -> {V, K} end, maps:to_list(Forward))), Forward).
+
 to_receiver_inputs(Val) ->
-    case Val of
-        <<"hdmi1">> ->
-            19;
-        <<"cd">> ->
-            01
-    end.
+    maps:get(binary_to_existing_atom(Val, latin1), inputs()).
 
 receiver_inputs(Val) ->
-    case Val of
-        <<"19">> ->
-            "HDMI1";
-        <<"20">> ->
-            "HDMI2";
-        <<"21">> ->
-            "HDMI3";
-        <<"25">> ->
-            "BD";
-        <<"01">> ->
-            "CD";
-        _ ->
-            "Nothing"
-    end.
+    string:to_upper(atom_to_list(maps:get(binary_to_integer(Val), inputs()))).
 
 -include_lib("eunit/include/eunit.hrl").
 
 -ifdef(TEST).
 dummy_conf() ->
-    #{ device_type => ?MODULE, target => #{ ip => {"1.2.3.4", 1}, type => atom }}.
+    #{ device_type => ?MODULE, device_name => "my_device", target => #{ ip => {"1.2.3.4", 1}, type => atom}}.
 
 can_parse_no_value_response_test() ->
     Response = <<"R\r\n">>,
@@ -175,4 +184,9 @@ can_parse_no_value_response_followed_by_normal_response_test() ->
     {Matches, <<>>} = Parser(Response, <<>>, ParserState),
     [[<<"R">>, <<>>],[<<"FN">>, <<"19">>]] = Matches.
 
+inputs_test() ->
+    19 = to_receiver_inputs(<<"hdmi1">>),
+    "HDMI1" = receiver_inputs(<<"19">>),
+    01 = to_receiver_inputs(<<"cd">>),
+    "CD" = receiver_inputs(<<"01">>).
 -endif.
