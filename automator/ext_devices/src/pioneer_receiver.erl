@@ -13,6 +13,9 @@ get_specification(Conf) ->
         <<"power_on">> => {multi, ["\r", {sleep, 200}, "PO\r", {sleep, 2200}, "?P\r"]},
         <<"power">> => "?P\r",
         <<"input">> => "?F\r",
+        <<"set_input">> => fun(_Cmd, Val) ->
+                                   io_lib:format("~2..0BF\r", [to_receiver_inputs(Val)])
+                           end,
         <<"mute">> => "?M\r",
         <<"mute_on">> => "MO\r",
         <<"mute_off">> => "MF\r",
@@ -99,6 +102,14 @@ either(TL, TR, Val) ->
             Cap;
         { _, {Val, Cap} } ->
             Cap
+    end.
+
+to_receiver_inputs(Val) ->
+    case Val of
+        <<"hdmi1">> ->
+            19;
+        <<"cd">> ->
+            01
     end.
 
 receiver_inputs(Val) ->
