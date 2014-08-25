@@ -14,7 +14,7 @@ get_specification(Conf) ->
         <<"power">> => "?P\r",
         <<"input">> => "?F\r",
         <<"set_input">> => fun(_Cmd, Val) ->
-                                   io_lib:format("~2..0BF\r", [to_receiver_inputs(Val)])
+                                   io_lib:format("~2..0BFN\r", [to_receiver_inputs(Val)])
                            end,
         <<"mute">> => "?M\r",
         <<"mute_on">> => "MO\r",
