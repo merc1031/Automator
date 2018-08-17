@@ -10,8 +10,12 @@ get_specification(Conf) ->
     }},
 
     ResponseParser = {response_parser, {
-    }},
-    ResponseMap = {response_map, #{
+                        fun(Response, OldData, Parser) ->
+                            {Working, Buffer} = device_utils:line_protocol_helper(Response, OldData, <<"\r">>),
+                            Matches = device_utils:run_regex(Working, Parser),
+                            {Matches, Buffer}
+                        end,
+                        fun() -> {ok, Re} = re:compile("completeir,1:([123]),([0-9]+)"), Re end()
     }},
 
     InitialDataState = {initial_data_state, #{
@@ -20,16 +24,13 @@ get_specification(Conf) ->
     #{ target := #{ ip := {Ip, Port}, type := Type } } = Conf,
 
     Target = {target, {Type, register_device, [Ip, Port]}},
-    CleanResponse = {clean_response_action,
-                     fun(Resp) ->
-                        Resp
-                     end},
-    Params = [Name, CommandMap, ResponseParser, ResponseMap, Target, InitialDataState, CleanResponse],
+    Params = [Name, CommandMap, Target, ResponseParser, InitialDataState],
     Params.
 
 ir_command(Port, Pulse) ->
-    io_lib:format("sendir,1:~1..B,1,3800,1,1,~s\r", [Port, Pulse]).
+    io_lib:format("sendir,1:~1..0B,1,38000,1,1,~s\r", [Port, Pulse]).
 
 -include_lib("eunit/include/eunit.hrl").
 
 -ifdef(TEST).
+-endif.

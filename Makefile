@@ -13,7 +13,7 @@ SANDBOX_CONFIG		?=
 
 all: compile
 
-compile: deps
+compile: locked-deps
 	@(./bin/rebar compile)
 
 deps:
@@ -35,7 +35,7 @@ distclean:
 	@./bin/rebar delete-deps
 	@rm -rf $(PKG_ID).tar.gz
 
-rel: deps compile
+rel: locked-deps compile
 	@./bin/rebar generate skip_deps=true $(OVERLAY_VARS)
 
 relclean:
@@ -56,11 +56,11 @@ sandboxclean:
 .PHONY: package
 export PKG_VERSION PKG_ID PKG_BUILD BASE_DIR ERLANG_BIN REBAR OVERLAY_VARS RELEASE
 
-package.src: deps
+package.src: locked-deps
 	mkdir -p package
 	rm -rf package/$(PKG_ID)
 	git archive --format=tar --prefix=$(PKG_ID)/ $(PKG_REVISION)| (cd package && tar -xf -)
-	${MAKE} -C package/$(PKG_ID) deps
+	${MAKE} -C package/$(PKG_ID) locked-deps
 	for dep in package/$(PKG_ID)/deps/*; do \
 		echo "Processing dep: $${dep}"; \
 		mkdir -p $${dep}/priv; \

@@ -43,6 +43,7 @@ init([PropList]) ->
         Name = proplists:get_value(name, PropList),
         CommandMap = proplists:get_value(command_map, PropList),
         ResponseMap = proplists:get_value(response_map, PropList, #{}),
+        % TODO undefined is bad here. should have a default noop parser
         ResponseParser = proplists:get_value(response_parser, PropList, undefined),
         Target = proplists:get_value(target, PropList, undefined),
         Listeners = proplists:get_value(listeners, PropList, []),
