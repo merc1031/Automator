@@ -57,9 +57,10 @@ handle_cast({register_device, From, DeviceModule, Ip, Port}, State=#serial_tcp_b
                                                                 name_to_data_map=NameToDataMap
                                                                }) ->
     {ok, ErlangIp} = inet_parse:address(Ip),
-    Uid = list_to_atom(tuple_to_list(ErlangIp) ++ integer_to_list(Port)),
+    Uid = list_to_atom(tuple_to_list(ErlangIp) ++ integer_to_list(Port) ++ atom_to_list(DeviceModule)),
     State2 = case maps:find(Uid, NameToDataMap) of
         {ok, _Val} ->
+            From ! {registered, Uid},
             State;
         error ->
             Socket = connect(ErlangIp, Port),
