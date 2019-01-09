@@ -1,4 +1,4 @@
--module(samsung_ir).
+-module(lg_c8_pua_ir).
 
 -export([get_specification/1]).
 
